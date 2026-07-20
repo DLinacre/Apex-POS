@@ -1,11 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Apex POS icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#22c55e"/>
-      <stop offset="1" stop-color="#10b981"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a"/>
+      <stop offset="100%" style="stop-color:#1e293b"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#0f172a"/>
-  <rect x="3" y="3" width="58" height="58" rx="12" fill="none" stroke="#1e293b" stroke-width="1.5"/>
-  <path d="M32 12 L48 48 H40.5 L37 39.5 H27 L23.5 48 H16 Z M32 26 L35.5 34 H28.5 Z" fill="url(#g)"/>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Shopping basket icon -->
+  <g transform="translate(256,256)" fill="none" stroke="#22c55e" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Basket handle -->
+    <path d="M-60,-120 L-140,-120 L-180,0 L180,0 L140,-120 L60,-120" />
+    <!-- Basket body -->
+    <path d="M-180,0 L-160,160 L160,160 L180,0" />
+    <!-- Items inside basket -->
+    <line x1="-80" y1="60" x2="-80" y2="120" stroke-width="16"/>
+    <line x1="0" y1="40" x2="0" y2="130" stroke-width="16"/>
+    <line x1="80" y1="50" x2="80" y2="120" stroke-width="16"/>
+    <!-- Check mark -->
+    <circle cx="100" cy="-80" r="60" fill="#22c55e" stroke="none"/>
+    <path d="M80,-80 L95,-65 L120,-95" stroke="#0f172a" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
 </svg>

@@ -4,7 +4,7 @@ createApp({
     data() {
         return {
             // View navigation
-            currentView: 'dashboard', // dashboard, register, sales, inventory, customers, expenses, settings, employee
+            currentView: 'dashboard',
             sidebarOpen: false,
             darkMode: false,
 
@@ -15,11 +15,11 @@ createApp({
                 storePhone: "+44 121 555 0199",
                 storeEmail: "contact@apexshop.co.uk",
                 currency: "£",
-                taxRate: 20, // 20% VAT standard
+                taxRate: 20,
                 receiptHeader: "THANK YOU FOR YOUR BUSINESS!",
                 receiptFooter: "Please keep this receipt. Refunds within 14 days.",
                 lowStockAlert: 10,
-                googleClientId: "" // Configurable client ID
+                googleClientId: ""
             },
 
             // Live database arrays
@@ -30,7 +30,7 @@ createApp({
             expenses: [],
             cashiers: [],
 
-            // Cashier Sessions (Automatically logged in by LocalStorage/Cookies or Google login)
+            // Cashier Sessions
             activeCashier: {
                 name: "Admin Manager",
                 role: "Manager",
@@ -42,12 +42,12 @@ createApp({
             selectedCategory: 'All',
             searchQuery: '',
 
-            // Register/Cart state (Restored from Session/LocalStorage)
+            // Register/Cart state
             cart: [],
             cartDiscount: 0,
             cartDiscountType: 'fixed',
             selectedCustomer: null,
-            heldCarts: [], // suspended orders
+            heldCarts: [],
 
             // Checkout / Calculator State
             paymentMethod: 'Cash',
@@ -58,42 +58,28 @@ createApp({
             // NFC Phone Scanning Engine
             nfcSupported: false,
             nfcScanning: false,
-            nfcWriteData: '', // Payload queue to write onto empty tags
+            nfcWriteData: '',
             isNfcWriterOpen: false,
-            nfcWriteTargetType: 'customer', // customer, product, employee
+            nfcWriteTargetType: 'customer',
             nfcWriteTargetId: '',
 
-            // Active / Completed sale for receipt modal
+            // Receipt modal
             currentReceiptSale: null,
             isReceiptModalOpen: false,
 
-            // Form states for modals / editing
+            // Form states for modals
             productModalMode: 'add',
             isProductModalOpen: false,
             productForm: {
-                id: null,
-                name: '',
-                sku: '',
-                barcode: '',
-                category: '',
-                costPrice: 0,
-                retailPrice: 0,
-                stock: 0,
-                reorderPoint: 5,
-                image: '',
-                status: 'active',
-                description: ''
+                id: null, name: '', sku: '', barcode: '', category: '',
+                costPrice: 0, retailPrice: 0, stock: 0, reorderPoint: 5,
+                image: '', status: 'active', description: ''
             },
 
             customerModalMode: 'add',
             isCustomerModalOpen: false,
             customerForm: {
-                id: null,
-                name: '',
-                phone: '',
-                email: '',
-                address: '',
-                notes: ''
+                id: null, name: '', phone: '', email: '', address: '', notes: ''
             },
 
             expenseModalMode: 'add',
@@ -101,61 +87,42 @@ createApp({
             expenseForm: {
                 id: null,
                 date: new Date().toISOString().split('T')[0],
-                category: 'Rent',
-                amount: 0,
-                description: '',
+                category: 'Rent', amount: 0, description: '',
                 paymentMethod: 'Bank Transfer'
             },
 
             isCategoryModalOpen: false,
-            categoryForm: {
-                name: '',
-                description: ''
-            },
+            categoryForm: { name: '', description: '' },
 
-            // Cashier Modal Form
             isCashierModalOpen: false,
-            cashierForm: {
-                name: '',
-                passcode: '',
-                role: 'Cashier',
-                email: '',
-                nfcUid: ''
-            },
+            cashierForm: { name: '', passcode: '', role: 'Cashier', email: '', nfcUid: '' },
 
-            // Barcode inputs
             barcodeBuffer: '',
             lastBarcodeKeyTime: 0,
 
-            // Date Filters
             reportRange: '7days',
             customStartDate: '',
             customEndDate: '',
 
-            // Chart JS Instances
             salesChartInstance: null,
             categoryChartInstance: null,
 
-            // Keyboard shortcuts overlay
             isShortcutsModalOpen: false,
-
-            // Online status
             isOnline: navigator.onLine,
 
-            // Default image fallback
+            // Loading state
+            isLoading: true,
+
             defaultProductImage: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"%3E%3Crect fill="%23e2e8f0" width="300" height="300"/%3E%3Ctext x="150" y="150" text-anchor="middle" dy=".35em" fill="%2394a3b8" font-size="48" font-family="system-ui" font-weight="600"%3EPOS%3C/text%3E%3C/svg%3E',
 
-            // Toast Alerts
-            notification: {
-                show: false,
-                message: '',
-                type: 'success'
-            }
+            notification: { show: false, message: '', type: 'success' },
+
+            // Accessibility: announce dynamic content to screen readers
+            liveRegionMessage: ''
         };
     },
 
     computed: {
-        // Keyboard shortcuts list
         shortcuts() {
             return [
                 { key: 'R', action: 'Open POS Register' },
@@ -168,19 +135,17 @@ createApp({
             ];
         },
 
-        // Filtered register products
         filteredProducts() {
             return this.products.filter(p => {
                 const matchesCategory = this.selectedCategory === 'All' || p.category === this.selectedCategory;
-                const matchesSearch = p.name.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
-                                      p.sku.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
-                                      p.barcode.includes(this.searchQuery);
-                const isActive = p.status === 'active';
-                return matchesCategory && matchesSearch && isActive;
+                const searchLower = this.searchQuery.toLowerCase();
+                const matchesSearch = p.name.toLowerCase().includes(searchLower) ||
+                                      p.sku.toLowerCase().includes(searchLower) ||
+                                      (p.barcode && p.barcode.includes(this.searchQuery));
+                return matchesCategory && matchesSearch && p.status === 'active';
             });
         },
 
-        // Cart calculations
         cartSubtotal() {
             return this.cart.reduce((sum, item) => sum + (item.retailPrice * item.qty), 0);
         },
@@ -210,7 +175,6 @@ createApp({
             return parseFloat((Number(this.paidAmount) - this.cartTotal).toFixed(2));
         },
 
-        // Metrics engine
         dashboardMetrics() {
             const rangeSales = this.getFilteredSalesForReports();
             const rangeExpenses = this.getFilteredExpensesForReports();
@@ -221,7 +185,6 @@ createApp({
             const netProfit = parseFloat((totalProfit - totalExpenses).toFixed(2));
             const transactionCount = rangeSales.filter(s => s.status === 'completed').length;
             const avgBasket = transactionCount > 0 ? parseFloat((grossSales / transactionCount).toFixed(2)) : 0;
-
             const lowStockProducts = this.products.filter(p => p.stock <= p.reorderPoint);
 
             return {
@@ -237,26 +200,32 @@ createApp({
     },
 
     methods: {
+        // ── Notification System ──
         showNotification(message, type = 'success') {
             this.notification.message = message;
             this.notification.type = type;
             this.notification.show = true;
-            setTimeout(() => { this.notification.show = false; }, 3000);
+            this.liveRegionMessage = message + ' — ' + type;
+            setTimeout(() => {
+                this.notification.show = false;
+                this.liveRegionMessage = '';
+            }, 4000);
         },
 
-        // --- SESSION PERSISTENCE (Cookies & LocalStorage) ---
+        // ── SESSION PERSISTENCE ──
         saveCartToStorage() {
-            // Save active cart, selected customer, and discount to allow simple refresh-resiliency
             const state = {
                 cart: this.cart,
                 cartDiscount: this.cartDiscount,
                 cartDiscountType: this.cartDiscountType,
                 selectedCustomer: this.selectedCustomer
             };
-            localStorage.setItem('apex_pos_cart_state', JSON.stringify(state));
-            
-            // Set cookie for fallback
-            document.cookie = `apex_cart_active=true; max-age=86400; path=/; SameSite=Lax; Secure`;
+            try {
+                localStorage.setItem('apex_pos_cart_state', JSON.stringify(state));
+                document.cookie = `apex_cart_active=true; max-age=86400; path=/; SameSite=Lax; Secure`;
+            } catch (e) {
+                console.warn('Cart save failed:', e);
+            }
         },
 
         restoreCartFromStorage() {
@@ -275,11 +244,14 @@ createApp({
         },
 
         saveCashierSession(cashier) {
-            // Never persist secrets: strip passcode / NFC uid before storing the session
             const { passcode, nfcUid, ...safeCashier } = cashier;
             this.activeCashier = safeCashier;
-            localStorage.setItem('apex_pos_cashier', JSON.stringify(safeCashier));
-            document.cookie = `apex_cashier_name=${encodeURIComponent(safeCashier.name)}; max-age=2592000; path=/; SameSite=Lax; Secure`;
+            try {
+                localStorage.setItem('apex_pos_cashier', JSON.stringify(safeCashier));
+                document.cookie = `apex_cashier_name=${encodeURIComponent(safeCashier.name)}; max-age=2592000; path=/; SameSite=Lax; Secure`;
+            } catch (e) {
+                console.warn('Cashier save failed:', e);
+            }
         },
 
         restoreCashierSession() {
@@ -287,15 +259,14 @@ createApp({
             if (cashierStr) {
                 try {
                     this.activeCashier = JSON.parse(cashierStr);
-                } catch(e) {
+                } catch (e) {
                     console.error("Cashier session error", e);
                 }
             }
         },
 
-        // --- GOOGLE SIGN-IN AUTOMATION ---
+        // ── GOOGLE SIGN-IN ──
         initGoogleIdentity() {
-            // SSO is opt-in: no Client ID configured => stay fully local, load nothing.
             const clientID = (this.settings.googleClientId || "").trim();
             if (!clientID) return;
 
@@ -305,18 +276,17 @@ createApp({
                     google.accounts.id.initialize({
                         client_id: clientID,
                         callback: this.handleGoogleCredentialResponse,
-                        auto_select: true // Auto log-in on page reload if they've authorized before!
+                        auto_select: true
                     });
                     const btn = document.getElementById("google-signin-button");
                     if (btn) google.accounts.id.renderButton(btn, { theme: "outline", size: "medium", shape: "pill" });
                 } catch (err) {
-                    console.error("Google SSO load failed: ", err);
+                    console.warn("Google SSO init failed:", err);
                 }
             };
 
             if (typeof google !== 'undefined' && google.accounts) { startGsi(); return; }
 
-            // Lazy-load the GSI script only when SSO is actually configured
             const script = document.createElement("script");
             script.src = "https://accounts.google.com/gsi/client";
             script.async = true;
@@ -328,7 +298,6 @@ createApp({
 
         handleGoogleCredentialResponse(response) {
             try {
-                // Decode JWT client-side safely
                 const profile = this.decodeJwt(response.credential);
                 if (profile) {
                     const cashier = {
@@ -343,7 +312,7 @@ createApp({
                 }
             } catch (err) {
                 console.error("JWT Decode error", err);
-                this.showNotification("Google Authenticated profile parse failed.", "error");
+                this.showNotification("Google profile parse failed.", "error");
             }
         },
 
@@ -371,35 +340,35 @@ createApp({
             this.showNotification("Logged out cashier session.", "success");
         },
 
-        // --- WEB NFC API ENGINE & SIMULATOR ---
+        // ── WEB NFC API ──
         async toggleNfcScanning() {
             if (!('NDEFReader' in window)) {
-                this.showNotification("Web NFC API is not supported on this device/browser. Desktop testing will use the simulator instead.", "warning");
+                this.showNotification("Web NFC is not supported on this device. Use the simulator instead.", "warning");
                 return;
             }
 
             try {
                 if (this.nfcScanning) {
                     this.nfcScanning = false;
-                    this.showNotification("NFC Phone reader disabled.", "info");
+                    this.showNotification("NFC reader disabled.", "info");
                     return;
                 }
 
                 const ndef = new NDEFReader();
                 await ndef.scan();
                 this.nfcScanning = true;
-                this.showNotification("NFC Phone Listener active! Tap NFC cards/tags.", "success");
+                this.showNotification("NFC active! Tap NFC cards/tags.", "success");
 
                 ndef.addEventListener("reading", ({ message, serialNumber }) => {
                     for (const record of message.records) {
-                        const decoder = new TextDecoder(record.encoding);
+                        const decoder = new TextDecoder(record.encoding || 'utf-8');
                         const rawPayload = decoder.decode(record.data);
                         this.processNfcTag(rawPayload);
                     }
                 });
 
                 ndef.addEventListener("readingerror", () => {
-                    this.showNotification("NFC Reading Error. Hold tag close to phone NFC antenna.", "error");
+                    this.showNotification("NFC read error. Hold tag close to phone antenna.", "error");
                 });
 
             } catch (error) {
@@ -408,47 +377,38 @@ createApp({
             }
         },
 
-        // Process tag payload
         processNfcTag(payload) {
             const tag = payload.trim();
-            
-            // 1. Employee Tag (e.g. employee:Emma Watson)
+
             if (tag.startsWith("employee:")) {
                 const parts = tag.split(":");
-                const lookupVal = parts[1];
-                this.dbLoginByNfc(lookupVal);
-            }
-            // 2. Customer Tag (e.g. customer:John Doe)
-            else if (tag.startsWith("customer:")) {
+                this.dbLoginByNfc(parts[1]);
+            } else if (tag.startsWith("customer:")) {
                 const parts = tag.split(":");
-                const name = parts[1];
+                const name = parts.slice(1).join(":");
                 const cust = this.customers.find(c => c.name.toLowerCase() === name.toLowerCase());
                 if (cust) {
                     this.selectedCustomer = cust;
                     this.saveCartToStorage();
-                    this.showNotification(`Loyalty profile loaded: ${cust.name}`, "success");
+                    this.showNotification(`Loyalty profile: ${cust.name}`, "success");
                 } else {
-                    this.showNotification(`NFC customer card doesn't exist: ${name}`, "warning");
+                    this.showNotification(`Customer not found: ${name}`, "warning");
                 }
-            }
-            // 3. Product Tag (e.g. product:SKU-001)
-            else if (tag.startsWith("product:")) {
+            } else if (tag.startsWith("product:")) {
                 const parts = tag.split(":");
-                const sku = parts[1];
+                const sku = parts.slice(1).join(":");
                 const prod = this.products.find(p => p.sku === sku && p.status === 'active');
                 if (prod) {
                     this.addToCart(prod);
-                    this.showNotification(`Added ${prod.name} via NFC tap!`, "success");
+                    this.showNotification(`Added ${prod.name} via NFC!`, "success");
                 } else {
-                    this.showNotification(`NFC SKU code not found: ${sku}`, "warning");
+                    this.showNotification(`Product SKU not found: ${sku}`, "warning");
                 }
-            }
-            else {
-                // Raw fallback - check if matches SKU, Barcode, or Customer phone directly
+            } else {
                 const prod = this.products.find(p => p.sku === tag || p.barcode === tag);
                 if (prod) {
                     this.addToCart(prod);
-                    this.showNotification(`Added ${prod.name} via raw NFC payload!`, "success");
+                    this.showNotification(`Added ${prod.name} via NFC!`, "success");
                     return;
                 }
                 const cust = this.customers.find(c => c.phone === tag || c.name === tag);
@@ -457,12 +417,16 @@ createApp({
                     this.showNotification(`Loyalty profile: ${cust.name}`, "success");
                     return;
                 }
-                this.showNotification(`Unknown NFC Tag Payload: ${tag}`, "info");
+                this.showNotification(`Unknown NFC tag: ${tag}`, "info");
             }
         },
 
         async dbLoginByNfc(passcodeOrName) {
-            const matched = this.cashiers.find(c => c.passcode === passcodeOrName || c.name.toLowerCase() === passcodeOrName.toLowerCase() || c.nfcUid === `employee:${passcodeOrName}`);
+            const matched = this.cashiers.find(c =>
+                c.passcode === passcodeOrName ||
+                c.name.toLowerCase() === passcodeOrName.toLowerCase() ||
+                c.nfcUid === `employee:${passcodeOrName}`
+            );
             if (matched) {
                 const cashier = {
                     name: matched.name,
@@ -474,11 +438,10 @@ createApp({
                 this.showNotification(`NFC Login: Welcome, ${cashier.name}!`, "success");
                 this.changeView('dashboard');
             } else {
-                this.showNotification("NFC Badge did not match registered employee credentials.", "error");
+                this.showNotification("NFC badge not matched to any employee.", "error");
             }
         },
 
-        // --- NFC WRITE UTILITY (Writes real data to tags on phone) ---
         openNfcWriter(type, item) {
             this.nfcWriteTargetType = type;
             if (type === 'customer') {
@@ -496,64 +459,58 @@ createApp({
 
         async executeNfcWrite() {
             if (!('NDEFReader' in window)) {
-                this.showNotification("NFC Writing requires Chrome on Android with active NFC hardware.", "error");
+                this.showNotification("NFC Writing requires Chrome on Android.", "error");
                 return;
             }
 
             try {
-                this.showNotification("Hold empty NFC card/sticker near phone to write payload...", "info");
+                this.showNotification("Hold empty NFC tag near phone...", "info");
                 const ndef = new NDEFReader();
                 await ndef.write(this.nfcWriteData);
-                this.showNotification("NFC Card programmed successfully!", "success");
+                this.showNotification("NFC tag programmed!", "success");
                 this.isNfcWriterOpen = false;
 
-                // Sync badge uid with database
                 if (this.nfcWriteTargetType === 'employee') {
                     await db.cashiers.update(this.nfcWriteTargetId, { nfcUid: this.nfcWriteData });
                 }
                 await this.loadAllData();
             } catch (error) {
                 console.error(error);
-                this.showNotification("NFC Programming failed. Try again.", "error");
+                this.showNotification("NFC programming failed.", "error");
             }
         },
 
-        // Handle image load error — replace with default placeholder
         handleImageError(event) {
             event.target.src = this.defaultProductImage;
-            event.target.onerror = null; // prevent loops
+            event.target.onerror = null;
         },
 
-        // Toggle keyboard shortcuts overlay
         toggleShortcuts() {
             this.isShortcutsModalOpen = !this.isShortcutsModalOpen;
         },
 
-        // Desktop Simulator Tap (Fully Working Automation Testing)
         simulateNfcTap(simulatedPayload) {
-            this.showNotification(`[NFC Simulator] Scanning tag record: "${simulatedPayload}"`, "info");
+            this.showNotification(`[NFC Simulator] Scanning: "${simulatedPayload}"`, "info");
             setTimeout(() => {
                 this.processNfcTag(simulatedPayload);
             }, 500);
         },
 
-        // --- CASH DRAWER TENDER KEYPAD MECHANICS ---
+        // ── TENDER KEYPAD ──
         addTenderDigit(digit) {
             const current = this.paidAmount === null ? '' : String(this.paidAmount);
             if (digit === '.') {
-                if (current.includes('.')) return; // prevent multiple decimals
+                if (current.includes('.')) return;
                 this.paidAmount = current === '' ? '0.' : current + '.';
             } else {
                 this.paidAmount = parseFloat(current + digit);
             }
         },
 
-        clearTender() {
-            this.paidAmount = '';
-        },
+        clearTender() { this.paidAmount = ''; },
 
         backspaceTender() {
-            const current = String(this.paidAmount);
+            const current = String(this.paidAmount || '');
             if (current.length <= 1) {
                 this.paidAmount = '';
             } else {
@@ -562,15 +519,12 @@ createApp({
         },
 
         setQuickTender(amount) {
-            if (amount === 'exact') {
-                this.paidAmount = this.cartTotal;
-            } else {
-                this.paidAmount = amount;
-            }
+            this.paidAmount = amount === 'exact' ? this.cartTotal : amount;
         },
 
-        // --- BASE DATABASE WORKLOADS ---
+        // ── DATABASE ──
         async loadAllData() {
+            this.isLoading = true;
             try {
                 await seedDemoData();
 
@@ -584,10 +538,8 @@ createApp({
                 this.customers = await db.customers.toArray();
                 this.expenses = await db.expenses.toArray();
                 this.cashiers = await db.cashiers.toArray();
-                
                 this.sales = await db.sales.orderBy('date').reverse().toArray();
 
-                // Load cookie sessions
                 this.restoreCashierSession();
                 this.restoreCartFromStorage();
 
@@ -595,7 +547,6 @@ createApp({
                     this.selectedCustomer = this.customers.find(c => c.name === "Walk-in Customer") || this.customers[0];
                 }
 
-                // Check Google login initialization once settings are loaded
                 this.initGoogleIdentity();
 
                 if (this.currentView === 'dashboard') {
@@ -603,29 +554,37 @@ createApp({
                 }
             } catch (err) {
                 console.error("Master Sync DB failed", err);
-                this.showNotification("IndexedDB Sync failure. Please reboot page.", "error");
+                this.showNotification("IndexedDB sync failure. Please reload page.", "error");
+            } finally {
+                this.isLoading = false;
             }
         },
 
         changeView(view) {
             this.currentView = view;
             this.sidebarOpen = false;
-            if (view === 'dashboard') {
-                nextTick(() => {
+            // Focus management: move focus to main content
+            nextTick(() => {
+                const main = document.querySelector('main');
+                if (main) main.setAttribute('tabindex', '-1');
+                if (main) main.focus();
+                if (view === 'dashboard') {
                     this.renderCharts();
-                });
-            }
+                }
+            });
         },
 
-        // --- REGISTER CART WORKFLOWS ---
+        // ── CART WORKFLOWS ──
         addToCart(product) {
             if (product.stock <= 0) {
                 this.showNotification(`Stock depleted for ${product.name}!`, "warning");
+                return;
             }
             const existing = this.cart.find(item => item.id === product.id);
             if (existing) {
                 if (existing.qty >= product.stock) {
-                    this.showNotification(`Order quantity exceeds stock capacity (${product.stock}).`, "warning");
+                    this.showNotification(`Max stock reached (${product.stock}).`, "warning");
+                    return;
                 }
                 existing.qty++;
             } else {
@@ -644,25 +603,23 @@ createApp({
         updateCartQty(item, amount) {
             const product = this.products.find(p => p.id === item.id);
             const newQty = item.qty + amount;
-            
+
             if (newQty <= 0) {
                 this.removeFromCart(item);
                 return;
             }
 
             if (product && newQty > product.stock) {
-                this.showNotification(`Stock limits exceeded. Only ${product.stock} available.`, "warning");
+                this.showNotification(`Only ${product.stock} available.`, "warning");
             }
 
-            item.qty = newQty;
+            item.qty = Math.max(1, newQty);
             this.saveCartToStorage();
         },
 
         removeFromCart(item) {
             const idx = this.cart.indexOf(item);
-            if (idx > -1) {
-                this.cart.splice(idx, 1);
-            }
+            if (idx > -1) this.cart.splice(idx, 1);
             this.saveCartToStorage();
         },
 
@@ -678,17 +635,16 @@ createApp({
 
         suspendCart() {
             if (this.cart.length === 0) return;
-            const heldCart = {
+            this.heldCarts.push({
                 id: Date.now(),
                 date: new Date().toISOString(),
                 customer: this.selectedCustomer ? { ...this.selectedCustomer } : null,
                 items: [...this.cart],
                 discount: this.cartDiscount,
                 discountType: this.cartDiscountType
-            };
-            this.heldCarts.push(heldCart);
+            });
             this.clearCart();
-            this.showNotification("Cart successfully held in drafts.", "success");
+            this.showNotification("Cart held in drafts.", "success");
         },
 
         resumeCart(heldCart) {
@@ -700,7 +656,7 @@ createApp({
             }
             this.heldCarts = this.heldCarts.filter(c => c.id !== heldCart.id);
             this.saveCartToStorage();
-            this.showNotification("Restored draft cart.", "success");
+            this.showNotification("Cart restored.", "success");
         },
 
         deleteHeldCart(heldCart) {
@@ -709,7 +665,8 @@ createApp({
         },
 
         triggerCartDiscount() {
-            const input = prompt(`Enter Discount value (Symbol: ${this.cartDiscountType === 'percent' ? '%' : this.settings.currency}):`, this.cartDiscount);
+            const symbol = this.cartDiscountType === 'percent' ? '%' : this.settings.currency;
+            const input = prompt(`Enter discount (${symbol}):`, this.cartDiscount);
             if (input === null) return;
             const val = parseFloat(input);
             this.cartDiscount = isNaN(val) || val < 0 ? 0 : val;
@@ -723,23 +680,21 @@ createApp({
 
         openCheckout() {
             if (this.cart.length === 0) {
-                this.showNotification("Shopping cart is empty.", "warning");
+                this.showNotification("Cart is empty.", "warning");
                 return;
             }
-            this.paidAmount = this.cartTotal; // exact total tender suggestions
+            this.paidAmount = this.cartTotal;
             this.isCheckoutModalOpen = true;
         },
 
         setPaymentMethod(method) {
             this.paymentMethod = method;
-            if (method !== 'Cash') {
-                this.paidAmount = this.cartTotal;
-            }
+            if (method !== 'Cash') this.paidAmount = this.cartTotal;
         },
 
         async submitCheckout() {
             if (this.paidAmount < this.cartTotal && this.paymentMethod === 'Cash') {
-                this.showNotification("Incomplete payment. Cash tendered is less than total.", "error");
+                this.showNotification("Cash tendered is less than total.", "error");
                 return;
             }
 
@@ -762,32 +717,23 @@ createApp({
                     };
                 });
 
-                // Deduct stocks
+                // Deduct stock
                 for (const item of this.cart) {
                     const prod = this.products.find(p => p.id === item.id);
                     if (prod) {
-                        const newStock = Math.max(0, prod.stock - item.qty);
-                        await db.products.update(prod.id, { stock: newStock });
+                        await db.products.update(prod.id, { stock: Math.max(0, prod.stock - item.qty) });
                     }
                 }
 
-                // Profit calculation
                 const revenue = this.cartTotal;
                 const profit = parseFloat((revenue - totalCost).toFixed(2));
 
                 const saleRecord = {
-                    invoiceNumber,
-                    date: saleDate,
-                    items: saleItems,
-                    discount: this.cartDiscountAmount,
-                    tax: this.cartTaxAmount,
-                    subtotal: this.cartSubtotal,
-                    total: revenue,
-                    profit,
-                    paidAmount: Number(this.paidAmount),
-                    changeAmount: this.cartChangeAmount,
-                    paymentMethod: this.paymentMethod,
-                    status: 'completed',
+                    invoiceNumber, date: saleDate, items: saleItems,
+                    discount: this.cartDiscountAmount, tax: this.cartTaxAmount,
+                    subtotal: this.cartSubtotal, total: revenue, profit,
+                    paidAmount: Number(this.paidAmount), changeAmount: this.cartChangeAmount,
+                    paymentMethod: this.paymentMethod, status: 'completed',
                     customerId: this.selectedCustomer ? this.selectedCustomer.id : null,
                     customerName: this.selectedCustomer ? this.selectedCustomer.name : 'Walk-in Customer',
                     notes: this.checkoutNotes,
@@ -797,17 +743,15 @@ createApp({
                 const saleId = await db.sales.add(saleRecord);
                 saleRecord.id = saleId;
 
-                // Loyalty points credit
-                if (this.selectedCustomer && this.selectedCustomer.id && this.selectedCustomer.name !== "Walk-in Customer") {
+                if (this.selectedCustomer && this.selectedCustomer.name !== "Walk-in Customer") {
                     const gainedPoints = Math.floor(revenue);
                     const newPoints = (this.selectedCustomer.points || 0) + gainedPoints;
                     await db.customers.update(this.selectedCustomer.id, { points: newPoints });
                 }
 
                 this.isCheckoutModalOpen = false;
-                this.showNotification("Sale transaction completed!", "success");
+                this.showNotification(`Sale ${invoiceNumber} completed!`, "success");
 
-                // Preview thermal receipt
                 this.currentReceiptSale = saleRecord;
                 this.isReceiptModalOpen = true;
 
@@ -815,13 +759,13 @@ createApp({
                 await this.loadAllData();
             } catch (err) {
                 console.error("Sale write error:", err);
-                this.showNotification("DB Write failed on checkout.", "error");
+                this.showNotification("DB write failed on checkout.", "error");
             }
         },
 
-        // --- KEYBOARD BARCODE SCANNER HANDLER ---
+        // ── KEYBOARD HANDLER ──
         handleGlobalKeypress(e) {
-            const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+            const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
             const currentTime = Date.now();
             const timeDiff = currentTime - this.lastBarcodeKeyTime;
             this.lastBarcodeKeyTime = currentTime;
@@ -830,13 +774,9 @@ createApp({
                 if (e.key === 'Enter') {
                     const matchedBarcode = this.barcodeBuffer.trim();
                     this.barcodeBuffer = '';
-                    if (matchedBarcode.length > 2) {
-                        this.addByBarcode(matchedBarcode);
-                    }
-                } else {
-                    if (e.key !== 'Shift') {
-                        this.barcodeBuffer += e.key;
-                    }
+                    if (matchedBarcode.length > 2) this.addByBarcode(matchedBarcode);
+                } else if (e.key !== 'Shift') {
+                    this.barcodeBuffer += e.key;
                 }
             } else {
                 this.barcodeBuffer = e.key !== 'Shift' ? e.key : '';
@@ -847,6 +787,17 @@ createApp({
                     if (e.key === 's' || e.key === 'S') this.changeView('sales');
                     if (e.key === 'c' || e.key === 'C') this.openCheckout();
                     if (e.key === '?' || (e.key === '/' && !isInput)) this.toggleShortcuts();
+                    if (e.key === 'Escape') {
+                        this.isCheckoutModalOpen = false;
+                        this.isReceiptModalOpen = false;
+                        this.isProductModalOpen = false;
+                        this.isCustomerModalOpen = false;
+                        this.isExpenseModalOpen = false;
+                        this.isCategoryModalOpen = false;
+                        this.isCashierModalOpen = false;
+                        this.isNfcWriterOpen = false;
+                        this.isShortcutsModalOpen = false;
+                    }
                 }
             }
         },
@@ -855,39 +806,31 @@ createApp({
             const product = this.products.find(p => p.barcode === barcode && p.status === 'active');
             if (product) {
                 this.addToCart(product);
-                this.showNotification(`Added ${product.name} via barcode search.`, "success");
+                this.showNotification(`Added ${product.name} via barcode.`, "success");
                 const element = document.getElementById(`prod-card-${product.id}`);
                 if (element) {
                     element.classList.add('pulse-emerald');
                     setTimeout(() => element.classList.remove('pulse-emerald'), 1000);
                 }
             } else {
-                this.showNotification(`No active product matches barcode: ${barcode}`, "warning");
+                this.showNotification(`No product matches barcode: ${barcode}`, "warning");
             }
         },
 
         printReceipt() { window.print(); },
         emailReceipt() {
-            const email = prompt("Enter customer email address:", this.selectedCustomer?.email || '');
-            if (email) { this.showNotification(`Mock thermal receipt emailed to ${email}!`, "success"); }
+            const email = prompt("Customer email:", this.selectedCustomer?.email || '');
+            if (email) this.showNotification(`Receipt emailed to ${email}!`, "success");
         },
 
-        // --- PRODUCT CONFIG CRUD ---
+        // ── PRODUCT CRUD ──
         openAddProduct() {
             this.productModalMode = 'add';
             this.productForm = {
-                id: null,
-                name: '',
-                sku: `SKU-${Date.now().toString().slice(-6)}`,
-                barcode: '',
-                category: this.categories[0]?.name || 'Beverages',
-                costPrice: 0,
-                retailPrice: 0,
-                stock: 0,
-                reorderPoint: 5,
-                image: '',
-                status: 'active',
-                description: ''
+                id: null, name: '', sku: `SKU-${Date.now().toString().slice(-6)}`,
+                barcode: '', category: this.categories[0]?.name || 'Beverages',
+                costPrice: 0, retailPrice: 0, stock: 0, reorderPoint: 5,
+                image: '', status: 'active', description: ''
             };
             this.isProductModalOpen = true;
         },
@@ -902,35 +845,34 @@ createApp({
             try {
                 const productData = { ...this.productForm };
                 delete productData.id;
-                
+
                 if (!productData.image) {
                     productData.image = `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60`;
                 }
 
                 if (this.productModalMode === 'add') {
-                    const existingSku = this.products.find(p => p.sku === productData.sku);
-                    if (existingSku) {
+                    if (this.products.some(p => p.sku === productData.sku)) {
                         this.showNotification("SKU already exists.", "error");
                         return;
                     }
                     await db.products.add(productData);
-                    this.showNotification(`Product ${productData.name} registered!`, "success");
+                    this.showNotification(`Product "${productData.name}" created!`, "success");
                 } else {
                     await db.products.update(this.productForm.id, productData);
-                    this.showNotification(`Product updated successfully!`, "success");
+                    this.showNotification("Product updated!", "success");
                 }
                 this.isProductModalOpen = false;
                 await this.loadAllData();
             } catch (err) {
                 console.error(err);
-                this.showNotification("Inventory listing database failure.", "error");
+                this.showNotification("Product save failed.", "error");
             }
         },
 
         async deleteProduct(id) {
-            if (confirm("Permanently erase product configurations?")) {
+            if (confirm("Delete this product permanently?")) {
                 await db.products.delete(id);
-                this.showNotification("Item listing removed.", "success");
+                this.showNotification("Product deleted.", "success");
                 await this.loadAllData();
             }
         },
@@ -945,7 +887,7 @@ createApp({
             try {
                 const name = this.categoryForm.name.trim();
                 if (this.categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-                    this.showNotification("Category label duplicate.", "warning");
+                    this.showNotification("Category already exists.", "warning");
                     return;
                 }
                 await db.categories.add({ name, description: this.categoryForm.description });
@@ -957,7 +899,7 @@ createApp({
             }
         },
 
-        // --- LOCAL CASHIER REGISTER ---
+        // ── CASHIER ──
         openAddCashier() {
             this.cashierForm = { name: '', passcode: '', role: 'Cashier', email: '', nfcUid: '' };
             this.isCashierModalOpen = true;
@@ -967,7 +909,7 @@ createApp({
             if (!this.cashierForm.name || !this.cashierForm.passcode) return;
             try {
                 await db.cashiers.add({ ...this.cashierForm });
-                this.showNotification("Local cashier profile created!", "success");
+                this.showNotification("Cashier created!", "success");
                 this.isCashierModalOpen = false;
                 await this.loadAllData();
             } catch (err) {
@@ -976,14 +918,14 @@ createApp({
         },
 
         async deleteCashier(id) {
-            if (confirm("Remove employee credential logs?")) {
+            if (confirm("Delete this cashier?")) {
                 await db.cashiers.delete(id);
-                this.showNotification("Cashier profile removed.", "success");
+                this.showNotification("Cashier deleted.", "success");
                 await this.loadAllData();
             }
         },
 
-        // --- CUSTOMER MANAGEMENT ---
+        // ── CUSTOMER ──
         openAddCustomer() {
             this.customerModalMode = 'add';
             this.customerForm = { id: null, name: '', phone: '', email: '', address: '', notes: '' };
@@ -1005,10 +947,10 @@ createApp({
                     custData.points = 0;
                     custData.createdAt = new Date().toISOString();
                     await db.customers.add(custData);
-                    this.showNotification("Customer profile created!", "success");
+                    this.showNotification("Customer created!", "success");
                 } else {
                     await db.customers.update(this.customerForm.id, custData);
-                    this.showNotification("Customer profile updated!", "success");
+                    this.showNotification("Customer updated!", "success");
                 }
                 this.isCustomerModalOpen = false;
                 await this.loadAllData();
@@ -1018,17 +960,20 @@ createApp({
         },
 
         async deleteCustomer(id) {
-            if (confirm("Delete customer file?")) {
+            if (confirm("Delete this customer?")) {
                 await db.customers.delete(id);
-                this.showNotification("Customer removed.", "success");
+                this.showNotification("Customer deleted.", "success");
                 await this.loadAllData();
             }
         },
 
-        // --- EXPENSES LOG ---
+        // ── EXPENSES ──
         openAddExpense() {
             this.expenseModalMode = 'add';
-            this.expenseForm = { id: null, date: new Date().toISOString().split('T')[0], category: 'Rent', amount: 0, description: '', paymentMethod: 'Bank Transfer' };
+            this.expenseForm = {
+                id: null, date: new Date().toISOString().split('T')[0],
+                category: 'Rent', amount: 0, description: '', paymentMethod: 'Bank Transfer'
+            };
             this.isExpenseModalOpen = true;
         },
 
@@ -1046,10 +991,10 @@ createApp({
 
                 if (this.expenseModalMode === 'add') {
                     await db.expenses.add(expData);
-                    this.showNotification("Expense entry logged.", "success");
+                    this.showNotification("Expense logged.", "success");
                 } else {
                     await db.expenses.update(this.expenseForm.id, expData);
-                    this.showNotification("Expense updated successfully.", "success");
+                    this.showNotification("Expense updated.", "success");
                 }
                 this.isExpenseModalOpen = false;
                 await this.loadAllData();
@@ -1059,14 +1004,14 @@ createApp({
         },
 
         async deleteExpense(id) {
-            if (confirm("Remove expense logged details?")) {
+            if (confirm("Delete this expense?")) {
                 await db.expenses.delete(id);
-                this.showNotification("Expense entry removed.", "success");
+                this.showNotification("Expense deleted.", "success");
                 await this.loadAllData();
             }
         },
 
-        // --- REFUNDS HISTORY ---
+        // ── REFUNDS ──
         openReceipt(sale) {
             this.currentReceiptSale = sale;
             this.isReceiptModalOpen = true;
@@ -1074,7 +1019,7 @@ createApp({
 
         async refundSale(sale) {
             if (sale.status === 'refunded') return;
-            if (confirm(`Do you wish to initiate a refund for Invoice ${sale.invoiceNumber}?`)) {
+            if (confirm(`Refund invoice ${sale.invoiceNumber}?`)) {
                 try {
                     await db.sales.update(sale.id, { status: 'refunded' });
 
@@ -1088,8 +1033,9 @@ createApp({
                     if (sale.customerId && sale.customerName !== "Walk-in Customer") {
                         const cust = this.customers.find(c => c.id === sale.customerId);
                         if (cust) {
-                            const lostPoints = Math.floor(sale.total);
-                            await db.customers.update(cust.id, { points: Math.max(0, (cust.points || 0) - lostPoints) });
+                            await db.customers.update(cust.id, {
+                                points: Math.max(0, (cust.points || 0) - Math.floor(sale.total))
+                            });
                         }
                     }
 
@@ -1101,13 +1047,13 @@ createApp({
             }
         },
 
-        // --- EXPORTS & BACKUPS ---
+        // ── SETTINGS ──
         async saveSettings() {
             try {
                 for (const [key, value] of Object.entries(this.settings)) {
                     await db.settings.put({ key, value });
                 }
-                this.showNotification("Configurations saved!", "success");
+                this.showNotification("Settings saved!", "success");
                 await this.loadAllData();
             } catch (err) {
                 console.error(err);
@@ -1129,21 +1075,22 @@ createApp({
                 const jsonStr = JSON.stringify(data, null, 2);
                 const blob = new Blob([jsonStr], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
-                
+
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = `POS_Backup_${new Date().toISOString().split('T')[0]}.json`;
+                link.download = `ApexPOS_Backup_${new Date().toISOString().split('T')[0]}.json`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
-                this.showNotification("Backup saved successfully!", "success");
+                URL.revokeObjectURL(url);
+
+                this.showNotification("Backup downloaded!", "success");
             } catch (err) {
                 console.error(err);
             }
         },
 
-        triggerImportDatabase() { document.getElementById('import-file-input').click(); },
+        triggerImportDatabase() { document.getElementById('import-file-input')?.click(); },
 
         async importDatabase(event) {
             const file = event.target.files[0];
@@ -1154,11 +1101,11 @@ createApp({
                 try {
                     const parsed = JSON.parse(e.target.result);
                     if (!parsed.products || !parsed.sales) {
-                        this.showNotification("Backup schema invalid.", "error");
+                        this.showNotification("Invalid backup file.", "error");
                         return;
                     }
 
-                    if (confirm("Overwriting files with restore values. Are you sure?")) {
+                    if (confirm("This will overwrite all local data. Continue?")) {
                         await db.products.clear();
                         await db.categories.clear();
                         await db.sales.clear();
@@ -1167,47 +1114,42 @@ createApp({
                         await db.cashiers.clear();
                         await db.settings.clear();
 
-                        if (parsed.products.length > 0) await db.products.bulkAdd(parsed.products);
-                        if (parsed.categories.length > 0) await db.categories.bulkAdd(parsed.categories);
-                        if (parsed.sales.length > 0) await db.sales.bulkAdd(parsed.sales);
-                        if (parsed.customers.length > 0) await db.customers.bulkAdd(parsed.customers);
-                        if (parsed.expenses.length > 0) await db.expenses.bulkAdd(parsed.expenses);
-                        if (parsed.cashiers && parsed.cashiers.length > 0) await db.cashiers.bulkAdd(parsed.cashiers);
-                        if (parsed.settings.length > 0) await db.settings.bulkAdd(parsed.settings);
+                        if (parsed.products.length) await db.products.bulkAdd(parsed.products);
+                        if (parsed.categories.length) await db.categories.bulkAdd(parsed.categories);
+                        if (parsed.sales.length) await db.sales.bulkAdd(parsed.sales);
+                        if (parsed.customers.length) await db.customers.bulkAdd(parsed.customers);
+                        if (parsed.expenses.length) await db.expenses.bulkAdd(parsed.expenses);
+                        if (parsed.cashiers?.length) await db.cashiers.bulkAdd(parsed.cashiers);
+                        if (parsed.settings.length) await db.settings.bulkAdd(parsed.settings);
 
-                        this.showNotification("Backup restored successfully!", "success");
+                        this.showNotification("Backup restored!", "success");
                         await this.loadAllData();
                     }
                 } catch (err) {
                     console.error(err);
-                    this.showNotification("JSON parse failure.", "error");
+                    this.showNotification("Backup restore failed.", "error");
                 }
             };
             reader.readAsText(file);
         },
 
         async loadDemoPreset() {
-            if (confirm("Reload seed demo data? All edits will reset.")) {
+            if (confirm("Reset all data and reload demo data?")) {
                 await resetAllData();
-                this.showNotification("Presets loaded!", "success");
+                this.showNotification("Demo data loaded!", "success");
                 await this.loadAllData();
             }
         },
 
-        // --- GRAPH COMPILING STATS ---
+        // ── CHARTS ──
         getFilteredSalesForReports() {
             const now = new Date();
             let startLimit = new Date();
 
-            if (this.reportRange === '7days') {
-                startLimit.setDate(now.getDate() - 7);
-            } else if (this.reportRange === '30days') {
-                startLimit.setDate(now.getDate() - 30);
-            } else if (this.reportRange === 'thisMonth') {
-                startLimit = new Date(now.getFullYear(), now.getMonth(), 1);
-            } else if (this.reportRange === 'custom') {
-                if (this.customStartDate) startLimit = new Date(this.customStartDate);
-            }
+            if (this.reportRange === '7days') startLimit.setDate(now.getDate() - 7);
+            else if (this.reportRange === '30days') startLimit.setDate(now.getDate() - 30);
+            else if (this.reportRange === 'thisMonth') startLimit = new Date(now.getFullYear(), now.getMonth(), 1);
+            else if (this.reportRange === 'custom' && this.customStartDate) startLimit = new Date(this.customStartDate);
 
             return this.sales.filter(sale => {
                 const saleDate = new Date(sale.date);
@@ -1224,15 +1166,10 @@ createApp({
             const now = new Date();
             let startLimit = new Date();
 
-            if (this.reportRange === '7days') {
-                startLimit.setDate(now.getDate() - 7);
-            } else if (this.reportRange === '30days') {
-                startLimit.setDate(now.getDate() - 30);
-            } else if (this.reportRange === 'thisMonth') {
-                startLimit = new Date(now.getFullYear(), now.getMonth(), 1);
-            } else if (this.reportRange === 'custom') {
-                if (this.customStartDate) startLimit = new Date(this.customStartDate);
-            }
+            if (this.reportRange === '7days') startLimit.setDate(now.getDate() - 7);
+            else if (this.reportRange === '30days') startLimit.setDate(now.getDate() - 30);
+            else if (this.reportRange === 'thisMonth') startLimit = new Date(now.getFullYear(), now.getMonth(), 1);
+            else if (this.reportRange === 'custom' && this.customStartDate) startLimit = new Date(this.customStartDate);
 
             return this.expenses.filter(exp => {
                 const expDate = new Date(exp.date);
@@ -1250,24 +1187,20 @@ createApp({
             if (this.categoryChartInstance) this.categoryChartInstance.destroy();
 
             const salesFiltered = this.getFilteredSalesForReports();
-            
+
             const daysMap = {};
             for (let i = 6; i >= 0; i--) {
                 const date = new Date();
                 date.setDate(date.getDate() - i);
-                const dateKey = date.toISOString().split('T')[0];
-                daysMap[dateKey] = { revenue: 0, profit: 0 };
+                daysMap[date.toISOString().split('T')[0]] = { revenue: 0, profit: 0 };
             }
 
             salesFiltered.forEach(sale => {
                 if (sale.status === 'completed') {
                     const dateKey = sale.date.split('T')[0];
-                    if (daysMap[dateKey]) {
-                        daysMap[dateKey].revenue += sale.total;
-                        daysMap[dateKey].profit += sale.profit;
-                    } else {
-                        daysMap[dateKey] = { revenue: sale.total, profit: sale.profit };
-                    }
+                    if (!daysMap[dateKey]) daysMap[dateKey] = { revenue: 0, profit: 0 };
+                    daysMap[dateKey].revenue += sale.total;
+                    daysMap[dateKey].profit += sale.profit;
                 }
             });
 
@@ -1296,18 +1229,14 @@ createApp({
                                 data: revenueDataset,
                                 borderColor: '#10b981',
                                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                tension: 0.3,
-                                fill: true,
-                                borderWidth: 3
+                                tension: 0.3, fill: true, borderWidth: 3
                             },
                             {
                                 label: `Net Profit (${this.settings.currency})`,
                                 data: profitDataset,
                                 borderColor: '#6366f1',
                                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                                tension: 0.3,
-                                fill: true,
-                                borderWidth: 2
+                                tension: 0.3, fill: true, borderWidth: 2
                             }
                         ]
                     },
@@ -1325,8 +1254,8 @@ createApp({
                 if (sale.status === 'completed') {
                     sale.items.forEach(item => {
                         const prod = this.products.find(p => p.id === item.productId);
-                        const categoryName = prod ? prod.category : 'General';
-                        categoryShares[categoryName] = (categoryShares[categoryName] || 0) + item.total;
+                        const cat = prod ? prod.category : 'General';
+                        categoryShares[cat] = (categoryShares[cat] || 0) + item.total;
                     });
                 }
             });
@@ -1354,11 +1283,21 @@ createApp({
             }
         },
 
-        formatCurrency(val) { return `${this.settings.currency}${Number(val).toFixed(2)}`; },
+        formatCurrency(val) {
+            const num = Number(val);
+            if (isNaN(num)) return `${this.settings.currency}0.00`;
+            return `${this.settings.currency}${num.toFixed(2)}`;
+        },
+
         formatDateTime(isoStr) {
             if (!isoStr) return '';
-            const date = new Date(isoStr);
-            return date.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            try {
+                const date = new Date(isoStr);
+                return date.toLocaleString('en-GB', {
+                    day: '2-digit', month: '2-digit', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            } catch { return isoStr; }
         },
 
         exportProductsCSV() {
@@ -1366,32 +1305,27 @@ createApp({
             csvContent += "Name,SKU,Barcode,Category,Cost Price,Retail Price,Stock,Reorder Point,Status,Description\n";
 
             this.products.forEach(p => {
-                const row = [
-                    `"${p.name.replace(/"/g, '""')}"`,
+                csvContent += [
+                    `"${(p.name || '').replace(/"/g, '""')}"`,
                     `"${p.sku}"`,
-                    `"${p.barcode}"`,
+                    `"${p.barcode || ''}"`,
                     `"${p.category}"`,
-                    p.costPrice,
-                    p.retailPrice,
-                    p.stock,
-                    p.reorderPoint,
+                    p.costPrice, p.retailPrice, p.stock, p.reorderPoint,
                     p.status,
                     `"${(p.description || '').replace(/"/g, '""')}"`
-                ].join(",");
-                csvContent += row + "\n";
+                ].join(",") + "\n";
             });
 
-            const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `POS_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
+            link.setAttribute("href", encodeURI(csvContent));
+            link.setAttribute("download", `ApexPOS_Inventory_${new Date().toISOString().split('T')[0]}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            this.showNotification("Inventory exported as CSV!", "success");
+            this.showNotification("Inventory exported!", "success");
         },
 
-        triggerCSVImport() { document.getElementById('csv-file-input').click(); },
+        triggerCSVImport() { document.getElementById('csv-file-input')?.click(); },
 
         async importProductsCSV(event) {
             const file = event.target.files[0];
@@ -1402,61 +1336,53 @@ createApp({
                 try {
                     const text = e.target.result;
                     const lines = text.split("\n");
-                    const importedProducts = [];
-                    
+                    let imported = 0;
+
                     for (let i = 1; i < lines.length; i++) {
                         const line = lines[i].trim();
                         if (!line) continue;
 
-                        const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(",");
+                        const matches = line.match(/(\".*?\"|[^\",\\s]+)(?=\\s*,|\\s*$)/g) || line.split(",");
                         if (matches.length < 7) continue;
 
                         const clean = (str) => (str || '').replace(/^"|"$/g, '').trim();
 
                         const name = clean(matches[0]);
                         const sku = clean(matches[1]);
-                        const barcode = clean(matches[2]);
-                        const category = clean(matches[3]);
-                        const costPrice = parseFloat(clean(matches[4])) || 0;
-                        const retailPrice = parseFloat(clean(matches[5])) || 0;
-                        const stock = parseInt(clean(matches[6])) || 0;
-                        const reorderPoint = parseInt(clean(matches[7])) || 5;
-                        const status = clean(matches[8]) || 'active';
-                        const description = clean(matches[9]) || '';
+                        if (!name || !sku) continue;
 
+                        const category = clean(matches[3]);
                         if (category && !this.categories.some(c => c.name.toLowerCase() === category.toLowerCase())) {
                             await db.categories.add({ name: category, description: 'Imported' });
                         }
 
-                        importedProducts.push({
-                            name,
-                            sku: sku || `SKU-${Date.now().toString().slice(-6)}-${i}`,
-                            barcode,
+                        const existing = this.products.find(p => p.sku === sku);
+                        const data = {
+                            name, sku,
+                            barcode: clean(matches[2]),
                             category: category || 'General',
-                            costPrice,
-                            retailPrice,
-                            stock,
-                            reorderPoint,
-                            image: `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60`,
-                            status,
-                            description
-                        });
+                            costPrice: parseFloat(clean(matches[4])) || 0,
+                            retailPrice: parseFloat(clean(matches[5])) || 0,
+                            stock: parseInt(clean(matches[6])) || 0,
+                            reorderPoint: parseInt(clean(matches[7])) || 5,
+                            status: clean(matches[8]) || 'active',
+                            description: clean(matches[9]) || '',
+                            image: `https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&auto=format&fit=crop&q=60`
+                        };
+
+                        if (existing) {
+                            await db.products.update(existing.id, data);
+                        } else {
+                            await db.products.add(data);
+                        }
+                        imported++;
                     }
 
-                    if (importedProducts.length > 0) {
-                        for (const item of importedProducts) {
-                            const existing = this.products.find(p => p.sku === item.sku || (item.barcode && p.barcode === item.barcode));
-                            if (existing) {
-                                await db.products.update(existing.id, item);
-                            } else {
-                                await db.products.add(item);
-                            }
-                        }
-                        this.showNotification(`Processed ${importedProducts.length} CSV products!`, "success");
-                        await this.loadAllData();
-                    }
+                    this.showNotification(`Imported ${imported} products!`, "success");
+                    await this.loadAllData();
                 } catch (err) {
                     console.error(err);
+                    this.showNotification("CSV import failed.", "error");
                 }
             };
             reader.readAsText(file);
@@ -1468,34 +1394,32 @@ createApp({
         customStartDate() { if (this.reportRange === 'custom' && this.currentView === 'dashboard') this.renderCharts(); },
         customEndDate() { if (this.reportRange === 'custom' && this.currentView === 'dashboard') this.renderCharts(); },
         darkMode(newVal) {
-            if (newVal) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
-            localStorage.setItem('pos_dark_mode', newVal);
+            document.documentElement.classList.toggle('dark', newVal);
+            try { localStorage.setItem('pos_dark_mode', newVal); } catch {}
         }
     },
 
     mounted() {
-        this.darkMode = localStorage.getItem('pos_dark_mode') === 'true';
-        if (this.darkMode) document.documentElement.classList.add('dark');
+        try {
+            this.darkMode = localStorage.getItem('pos_dark_mode') === 'true';
+            if (this.darkMode) document.documentElement.classList.add('dark');
+        } catch {}
 
         this.loadAllData();
-        window.addEventListener('keypress', this.handleGlobalKeypress);
-        
-        // Track online/offline status
+
+        window.addEventListener('keydown', this.handleGlobalKeypress);
+
         this.isOnline = navigator.onLine;
         window.addEventListener('online', () => { this.isOnline = true; });
-        window.addEventListener('offline', () => { this.isOnline = false; });
-        
-        // Check if Web NFC is supported natively on this phone browser
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            this.showNotification("You are offline — Apex POS still works!", "info");
+        });
+
         this.nfcSupported = 'NDEFReader' in window;
     },
 
     beforeUnmount() {
-        window.removeEventListener('keypress', this.handleGlobalKeypress);
-        window.removeEventListener('online', () => {});
-        window.removeEventListener('offline', () => {});
+        window.removeEventListener('keydown', this.handleGlobalKeypress);
     }
 }).mount('#app');

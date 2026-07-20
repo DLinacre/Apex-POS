@@ -8,6 +8,8 @@
     <link rel="canonical" href="https://dlinacre.github.io/Apex-POS/">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="theme-color" content="#0f172a">
+    <meta name="application-name" content="Apex POS">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 
 
@@ -28,6 +30,7 @@
 
     <!-- Icons & PWA -->
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/favicon.png" type="image/png" sizes="32x32">
     <link rel="icon" href="assets/favicon.ico" sizes="32x32 16x16">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
     <link rel="manifest" href="manifest.json">
@@ -87,6 +90,8 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="h-full overflow-hidden text-slate-800 dark:text-slate-100 font-sans">
+    <a href="#main-content" class="skip-to-content">Skip to main content</a>
+    <div id="live-region" aria-live="polite" aria-atomic="true" class="sr-only">{{ liveRegionMessage }}</div>
     
     <div id="app" class="flex h-full overflow-hidden" v-cloak>
         
@@ -300,7 +305,7 @@
             </header>
 
             <!-- Main Panel Body Container -->
-            <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
+            <main id="main-content" class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
                 
                 <!-- VIEW 1: DASHBOARD / ANALYTICS PANEL -->
                 <div v-if="currentView === 'dashboard'" class="space-y-6">
