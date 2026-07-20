@@ -100,3 +100,27 @@ html {
         box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
     }
 }
+
+/* === Accessibility additions === */
+:focus-visible {
+    outline: 2px solid #22c55e;
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+    .pulse-emerald {
+        animation: none;
+    }
+    .fade-enter-active, .fade-leave-active,
+    .slide-in-enter-active, .slide-in-leave-active {
+        transition: none;
+    }
+}
+
+/* Keep the register's primary action targets comfortably tappable (WCAG 2.2 / 2.5.8) */
+.products-grid button {
+    min-height: 44px;
+}

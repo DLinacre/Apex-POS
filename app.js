@@ -234,7 +234,7 @@ createApp({
             localStorage.setItem('apex_pos_cart_state', JSON.stringify(state));
             
             // Set cookie for fallback
-            document.cookie = `apex_cart_active=true; max-age=86400; path=/`;
+            document.cookie = `apex_cart_active=true; max-age=86400; path=/; SameSite=Lax; Secure`;
         },
 
         restoreCartFromStorage() {
@@ -253,9 +253,11 @@ createApp({
         },
 
         saveCashierSession(cashier) {
-            this.activeCashier = cashier;
-            localStorage.setItem('apex_pos_cashier', JSON.stringify(cashier));
-            document.cookie = `apex_cashier_name=${encodeURIComponent(cashier.name)}; max-age=2592000; path=/`;
+            // Never persist secrets: strip passcode / NFC uid before storing the session
+            const { passcode, nfcUid, ...safeCashier } = cashier;
+            this.activeCashier = safeCashier;
+            localStorage.setItem('apex_pos_cashier', JSON.stringify(safeCashier));
+            document.cookie = `apex_cashier_name=${encodeURIComponent(safeCashier.name)}; max-age=2592000; path=/; SameSite=Lax; Secure`;
         },
 
         restoreCashierSession() {
@@ -271,24 +273,35 @@ createApp({
 
         // --- GOOGLE SIGN-IN AUTOMATION ---
         initGoogleIdentity() {
-            if (typeof google === 'undefined') return;
+            // SSO is opt-in: no Client ID configured => stay fully local, load nothing.
+            const clientID = (this.settings.googleClientId || "").trim();
+            if (!clientID) return;
 
-            const clientID = this.settings.googleClientId || "102830182312-mockexample.apps.googleusercontent.com"; // Graceful fallback
-            
-            try {
-                google.accounts.id.initialize({
-                    client_id: clientID,
-                    callback: this.handleGoogleCredentialResponse,
-                    auto_select: true // Auto log-in on page reload if they've authorized before!
-                });
+            const startGsi = () => {
+                if (typeof google === 'undefined' || !google.accounts) return;
+                try {
+                    google.accounts.id.initialize({
+                        client_id: clientID,
+                        callback: this.handleGoogleCredentialResponse,
+                        auto_select: true // Auto log-in on page reload if they've authorized before!
+                    });
+                    const btn = document.getElementById("google-signin-button");
+                    if (btn) google.accounts.id.renderButton(btn, { theme: "outline", size: "medium", shape: "pill" });
+                } catch (err) {
+                    console.error("Google SSO load failed: ", err);
+                }
+            };
 
-                google.accounts.id.renderButton(
-                    document.getElementById("google-signin-button"),
-                    { theme: "outline", size: "medium", shape: "pill" }
-                );
-            } catch (err) {
-                console.error("Google SSO load failed: ", err);
-            }
+            if (typeof google !== 'undefined' && google.accounts) { startGsi(); return; }
+
+            // Lazy-load the GSI script only when SSO is actually configured
+            const script = document.createElement("script");
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            script.onload = startGsi;
+            script.onerror = () => console.warn("Google Identity Services failed to load — continuing without SSO.");
+            document.head.appendChild(script);
         },
 
         handleGoogleCredentialResponse(response) {
