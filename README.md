@@ -1,19 +1,13 @@
-<p align="center">
-  <img src="assets/logo.svg" width="80" height="80" alt="Apex POS logo">
-</p>
+![Apex POS — Offline-First Point of Sale](assets/banner.png)
 
-<h1 align="center">Apex POS — Offline-First Point of Sale</h1>
+# Apex POS — Offline-First Point of Sale
 
-<p align="center">
-  <a href="https://dlinacre.github.io/Apex-POS/"><img src="https://img.shields.io/badge/Live-dlinacre.github.io%2FApex--POS-22c55e?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live App"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=open-source-initiative&logoColor=white" alt="License: MIT"></a>
-  <a href="https://github.com/DLinacre/Apex-POS/stargazers"><img src="https://img.shields.io/github/stars/DLinacre/Apex-POS?style=for-the-badge&logo=github&color=f59e0b" alt="GitHub Stars"></a>
-  <br>
-  <a href="https://dlinacre.github.io/Apex-POS/"><img src="https://img.shields.io/badge/Offline--First-Service%20Worker-10b981?style=flat-square" alt="Offline-First"></a>
-  <a href="https://github.com/DLinacre/Apex-POS"><img src="https://img.shields.io/badge/Backend-None%20Needed-6366f1?style=flat-square" alt="No Server Required"></a>
-  <a href="#tech-stack"><img src="https://img.shields.io/badge/Dependencies-Pinned%20%2B%20SRI-f59e0b?style=flat-square" alt="Pinned + SRI"></a>
-  <a href="./privacy.html"><img src="https://img.shields.io/badge/Privacy-First-8b5cf6?style=flat-square" alt="Privacy First"></a>
-</p>
+[![Live App](https://img.shields.io/badge/Live-dlinacre.github.io%2FApex--POS-22c55e?style=flat-square)](https://dlinacre.github.io/Apex-POS/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](./LICENSE)
+[![Offline-First](https://img.shields.io/badge/Offline--First-Service%20Worker-10b981?style=flat-square)](https://dlinacre.github.io/Apex-POS/)
+[![No Server Required](https://img.shields.io/badge/Backend-None%20Needed-6366f1?style=flat-square)](https://github.com/DLinacre/Apex-POS)
+[![Pinned + SRI](https://img.shields.io/badge/Dependencies-Pinned%20%2B%20SRI-f59e0b?style=flat-square)](#tech-stack)
+[![Privacy First](https://img.shields.io/badge/Privacy-First-8b5cf6?style=flat-square)](./privacy.html)
 
 **A complete point-of-sale system that runs entirely in the browser — no server, no cloud, no account.** Open it on a till, tablet or laptop and start selling: the whole database lives in IndexedDB on the device.
 
@@ -98,11 +92,6 @@ Apex POS is a full-featured demo/starter POS. It is **not** a certified payment 
 - [SECURITY](./SECURITY.md) — security policy & vulnerability reporting
 - [License (MIT)](./LICENSE)
 
-## Project stats
-
-![GitHub stars](https://img.shields.io/github/stars/DLinacre/Apex-POS?style=social)
-![GitHub forks](https://img.shields.io/github/forks/DLinacre/Apex-POS?style=social)
-
 ## Roadmap
 
 - [ ] Barcode scanner support (WebHID / camera)
@@ -110,8 +99,6 @@ Apex POS is a full-featured demo/starter POS. It is **not** a certified payment 
 - [ ] Multi-till device sync (opt-in)
 - [ ] Receipt logo upload
 - [ ] Compiled-Tailwind production stylesheet (remove runtime JIT)
-- [ ] Keyboard shortcut help overlay (✅ done)
-- [ ] Privacy policy page (✅ done)
 
 Contributions welcome — open an issue or PR.
 
