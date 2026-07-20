@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy · Apex POS</title>
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#0f172a" />
+  <style>
+    body { margin:0; min-height:100vh; background:#f8fafc; color:#1e293b; font:16px/1.7 system-ui,sans-serif; }
+    .container { max-width:720px; margin:0 auto; padding:48px 24px; }
+    h1 { font-size:28px; margin:0 0 4px; color:#0f172a; }
+    h2 { font-size:20px; margin:32px 0 12px; color:#0f172a; }
+    p, li { color:#475569; }
+    a { color:#059669; }
+    .meta { font-size:14px; color:#94a3b8; margin-bottom:32px; }
+    hr { border:none; border-top:1px solid #e2e8f0; margin:32px 0; }
+    footer { margin-top:48px; font-size:14px; color:#94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective: 20 July 2026 &middot; Apex POS v2.0</p>
+
+    <h2>Overview</h2>
+    <p>Apex POS is designed with your privacy as a core principle. The application runs entirely in your browser — there is no server, no cloud storage, and no third-party data processing by default.</p>
+
+    <h2>Data Storage</h2>
+    <p>All data you enter into Apex POS (products, customers, sales, expenses, settings) is stored <strong>locally on your device</strong> using IndexedDB, a browser-based database. This data never leaves your browser unless you explicitly choose to export it.</p>
+
+    <h2>No Analytics or Trackers</h2>
+    <p>Apex POS does not include any analytics scripts, tracking pixels, cookies for advertising, or third-party monitoring services. We do not collect, store, or transmit any usage data.</p>
+
+    <h2>Cookies</h2>
+    <p>Apex POS sets a single benign cookie (<code>apex_cart_active</code> and <code>apex_cashier_name</code>) with <code>SameSite=Lax; Secure</code> attributes to persist your session across page refreshes. This cookie contains only a boolean flag or a name — no personally identifiable information.</p>
+
+    <h2>External Requests</h2>
+    <p>The following external requests are made by Apex POS:</p>
+    <ul>
+      <li><strong>Framework CDNs</strong> (Vue 3, Dexie.js, Chart.js, Tailwind CSS, FontAwesome) — loaded only on first visit and cached by the service worker for offline use. All scripts are version-pinned with Subresource Integrity (SRI) hashes.</li>
+      <li><strong>Demo product images</strong> — loaded from Unsplash. You can replace these with your own images in the app.</li>
+      <li><strong>Google Sign-In</strong> — only loaded if you explicitly configure a Google OAuth Client ID in Settings. No Google requests are made unless you opt in.</li>
+    </ul>
+
+    <h2>Google Sign-In (Optional)</h2>
+    <p>If you configure Google Sign-In, the Google Identity Services script is loaded from <code>accounts.google.com</code>. Google's <a href="https://policies.google.com/privacy">privacy policy</a> applies to that interaction. Apex POS does not store Google credentials — the JWT is decoded client-side and only the profile name, email, and picture URL are stored locally.</p>
+
+    <h2>PCI DSS</h2>
+    <p>Apex POS is <strong>not</strong> a certified payment device and is intentionally out of PCI DSS scope. No credit card numbers, CVV codes, or cardholder data should be entered into the application.</p>
+
+    <h2>Changes to This Policy</h2>
+    <p>If this policy changes materially, the "Effective" date at the top will be updated. Continued use of Apex POS after changes constitutes acceptance of the updated policy.</p>
+
+    <hr />
+
+    <h2>Contact</h2>
+    <p>For privacy-related questions, open an issue on <a href="https://github.com/DLinacre/Apex-POS">GitHub</a> or use the repository's Security Advisories for confidential concerns.</p>
+
+    <footer>
+      <p><a href="https://dlinacre.github.io/Apex-POS/">&larr; Back to Apex POS</a></p>
+    </footer>
+  </div>
+</body>
+</html>

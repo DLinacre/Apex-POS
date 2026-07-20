@@ -136,6 +136,15 @@ createApp({
             salesChartInstance: null,
             categoryChartInstance: null,
 
+            // Keyboard shortcuts overlay
+            isShortcutsModalOpen: false,
+
+            // Online status
+            isOnline: navigator.onLine,
+
+            // Default image fallback
+            defaultProductImage: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"%3E%3Crect fill="%23e2e8f0" width="300" height="300"/%3E%3Ctext x="150" y="150" text-anchor="middle" dy=".35em" fill="%2394a3b8" font-size="48" font-family="system-ui" font-weight="600"%3EPOS%3C/text%3E%3C/svg%3E',
+
             // Toast Alerts
             notification: {
                 show: false,
@@ -146,6 +155,19 @@ createApp({
     },
 
     computed: {
+        // Keyboard shortcuts list
+        shortcuts() {
+            return [
+                { key: 'R', action: 'Open POS Register' },
+                { key: 'D', action: 'Open Dashboard' },
+                { key: 'I', action: 'Open Inventory' },
+                { key: 'S', action: 'Open Sales History' },
+                { key: 'C', action: 'Open Checkout' },
+                { key: '?', action: 'Toggle Shortcuts Help' },
+                { key: 'Esc', action: 'Close Modal / Cancel' }
+            ];
+        },
+
         // Filtered register products
         filteredProducts() {
             return this.products.filter(p => {
@@ -496,6 +518,17 @@ createApp({
             }
         },
 
+        // Handle image load error — replace with default placeholder
+        handleImageError(event) {
+            event.target.src = this.defaultProductImage;
+            event.target.onerror = null; // prevent loops
+        },
+
+        // Toggle keyboard shortcuts overlay
+        toggleShortcuts() {
+            this.isShortcutsModalOpen = !this.isShortcutsModalOpen;
+        },
+
         // Desktop Simulator Tap (Fully Working Automation Testing)
         simulateNfcTap(simulatedPayload) {
             this.showNotification(`[NFC Simulator] Scanning tag record: "${simulatedPayload}"`, "info");
@@ -813,6 +846,7 @@ createApp({
                     if (e.key === 'i' || e.key === 'I') this.changeView('inventory');
                     if (e.key === 's' || e.key === 'S') this.changeView('sales');
                     if (e.key === 'c' || e.key === 'C') this.openCheckout();
+                    if (e.key === '?' || (e.key === '/' && !isInput)) this.toggleShortcuts();
                 }
             }
         },
@@ -1450,11 +1484,18 @@ createApp({
         this.loadAllData();
         window.addEventListener('keypress', this.handleGlobalKeypress);
         
+        // Track online/offline status
+        this.isOnline = navigator.onLine;
+        window.addEventListener('online', () => { this.isOnline = true; });
+        window.addEventListener('offline', () => { this.isOnline = false; });
+        
         // Check if Web NFC is supported natively on this phone browser
         this.nfcSupported = 'NDEFReader' in window;
     },
 
     beforeUnmount() {
         window.removeEventListener('keypress', this.handleGlobalKeypress);
+        window.removeEventListener('online', () => {});
+        window.removeEventListener('offline', () => {});
     }
 }).mount('#app');
