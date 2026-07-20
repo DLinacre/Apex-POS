@@ -279,3 +279,23 @@ a:has(> i) {
     white-space: nowrap;
     border-width: 0;
 }
+
+/* ── Camera Barcode Scanner ── */
+.barcode-scanner-video {
+    width: 100%;
+    max-height: 240px;
+    border-radius: 12px;
+    background: #000;
+    display: block;
+}
+
+.dark .barcode-scanner-video {
+    border: 1px solid #334155;
+}
+
+/* ── Receipt Logo ── */
+.receipt-logo-preview {
+    max-height: 60px;
+    width: auto;
+    object-fit: contain;
+}

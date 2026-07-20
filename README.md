@@ -147,11 +147,17 @@ Everything you sell, stock or expense never leaves the browser. There are:
 - [x] PWA installable with offline support
 - [x] Dark mode with persistent preference
 - [x] Google Sign-In integration (opt-in)
-- [ ] Barcode scanner support (WebHID / camera)
-- [ ] CSV import/export for products & sales
-- [ ] Multi-till device sync (opt-in)
-- [ ] Receipt logo upload
-- [ ] Compiled-Tailwind production stylesheet (remove runtime JIT)
+- [x] **Barcode scanner support** (Web BarcodeDetector API + camera)
+- [x] **CSV import/export for products & sales** (sales CSV export added)
+- [x] **Multi-tab device sync** (BroadcastChannel API, opt-in, same-origin tabs)
+- [x] **Receipt logo upload** (Settings → Upload Logo, displays on printed receipts)
+- [x] **Compiled-Tailwind production stylesheet** (`tailwind-compiled.css`)
+
+### Future ideas
+- Barcode scanner via WebHID for dedicated hardware
+- Multi-device sync via WebRTC / IPFS (serverless)
+- Receipt PDF export
+- Dark mode auto-follow system preference
 
 Contributions welcome — open an issue or PR!
 
