@@ -17,7 +17,7 @@ createApp({
         return {
             currentView: 'dashboard',
             sidebarOpen: false,
-            darkMode: false,
+            darkMode: true,
 
             settings: {
                 storeName: "Apex Corner Shop",
@@ -30,7 +30,10 @@ createApp({
                 receiptFooter: "Please keep this receipt. Refunds within 14 days.",
                 lowStockAlert: 10,
                 googleClientId: "",
-                receiptLogo: "" // data URL for receipt logo
+                receiptLogo: "", // data URL for receipt logo
+                paypalClientId: "sb",
+                googlePayMerchantId: "exampleMerchantId",
+                textPayTemplate: "https://paypal.me/apexshop/{{amount}}"
             },
 
             products: [],
@@ -534,7 +537,158 @@ createApp({
             this.isCheckoutModalOpen = true;
         },
 
-        setPaymentMethod(method) { this.paymentMethod = method; if (method !== 'Cash') this.paidAmount = this.cartTotal; },
+        setPaymentMethod(method) {
+            this.paymentMethod = method;
+            if (method !== 'Cash') {
+                this.paidAmount = this.cartTotal;
+            }
+            if (method === 'PayPal') {
+                this.initPayPalButton();
+            }
+        },
+
+        initPayPalButton() {
+            this.$nextTick(() => {
+                const container = document.getElementById('paypal-button-container');
+                if (!container) return;
+                container.innerHTML = ''; // Clear prior buttons
+                if (!window.paypal) {
+                    const script = document.createElement('script');
+                    script.src = `https://www.paypal.com/sdk/js?client-id=${this.settings.paypalClientId || 'sb'}&currency=${this.settings.currency === '£' ? 'GBP' : 'USD'}`;
+                    script.onload = () => {
+                        this.renderPayPalButtons();
+                    };
+                    script.onerror = () => {
+                        this.showNotification("Failed to load PayPal SDK.", "error");
+                    };
+                    document.head.appendChild(script);
+                } else {
+                    this.renderPayPalButtons();
+                }
+            });
+        },
+
+        renderPayPalButtons() {
+            if (!window.paypal || !document.getElementById('paypal-button-container')) return;
+            try {
+                window.paypal.Buttons({
+                    style: {
+                        layout: 'vertical',
+                        color:  'gold',
+                        shape:  'rect',
+                        label:  'paypal'
+                    },
+                    createOrder: (data, actions) => {
+                        return actions.order.create({
+                            purchase_units: [{
+                                amount: {
+                                    currency_code: this.settings.currency === '£' ? 'GBP' : 'USD',
+                                    value: this.cartTotal.toFixed(2)
+                                }
+                            }]
+                        });
+                    },
+                    onApprove: async (data, actions) => {
+                        try {
+                            const details = await actions.order.capture();
+                            this.paidAmount = this.cartTotal;
+                            this.checkoutNotes = `PayPal Payment Approved. ID: ${details.id}. Status: ${details.status}`;
+                            this.showNotification("PayPal payment successful!", "success");
+                            await this.submitCheckout();
+                        } catch (err) {
+                            console.error(err);
+                            this.showNotification("PayPal capture failed.", "error");
+                        }
+                    },
+                    onError: (err) => {
+                        console.error("PayPal Error:", err);
+                        this.showNotification("PayPal checkout failed.", "error");
+                    }
+                }).render('#paypal-button-container');
+            } catch (e) {
+                console.error("Error rendering PayPal buttons:", e);
+            }
+        },
+
+        async payWithGooglePay() {
+            if (!window.PaymentRequest) {
+                this.showNotification("Google Pay (Payment Request API) is not supported in this browser. Please use Chrome on Android.", "warning");
+                return;
+            }
+            try {
+                const supportedInstruments = [{
+                    supportedMethods: 'https://google.com/pay',
+                    data: {
+                        apiVersion: 2,
+                        apiVersionMinor: 0,
+                        allowedPaymentMethods: [{
+                            type: 'CARD',
+                            parameters: {
+                                allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                                allowedCardNetworks: ['AMEX', 'DISCOVER', 'INTERAC', 'JCB', 'MASTERCARD', 'VISA']
+                            },
+                            tokenizationSpecification: {
+                                type: 'PAYMENT_GATEWAY',
+                                parameters: {
+                                    gateway: 'example',
+                                    gatewayMerchantId: this.settings.googlePayMerchantId || 'exampleMerchantId'
+                                }
+                            }
+                        }]
+                    }
+                }, {
+                    supportedMethods: 'basic-card',
+                    data: {
+                        supportedNetworks: ['visa', 'mastercard', 'amex']
+                    }
+                }];
+
+                const details = {
+                    total: {
+                        label: 'Total Order Value',
+                        amount: { currency: this.settings.currency === '£' ? 'GBP' : 'USD', value: this.cartTotal.toFixed(2) }
+                    },
+                    displayItems: this.cart.map(item => ({
+                        label: `${item.name} x${item.qty}`,
+                        amount: { currency: this.settings.currency === '£' ? 'GBP' : 'USD', value: (item.retailPrice * item.qty).toFixed(2) }
+                    }))
+                };
+
+                const request = new PaymentRequest(supportedInstruments, details);
+                const response = await request.show();
+                await response.complete('success');
+                this.paidAmount = this.cartTotal;
+                this.checkoutNotes = `Google Pay Wallet transaction approved. Card details: ${response.details?.cardholderName || 'Digital Wallet'}`;
+                this.showNotification("Google Pay payment approved!", "success");
+                await this.submitCheckout();
+            } catch (err) {
+                console.error("Google Pay error:", err);
+                if (err.name !== 'AbortError') {
+                    this.showNotification("Payment card processing failed.", "error");
+                }
+            }
+        },
+
+        sendTextPayment(smsMethod) {
+            const customerPhone = this.selectedCustomer ? this.selectedCustomer.phone : '';
+            if (!customerPhone) {
+                this.showNotification("Please select a customer with a valid phone number first.", "warning");
+                return;
+            }
+            const amount = this.cartTotal.toFixed(2);
+            let payLink = this.settings.textPayTemplate || "https://paypal.me/apexshop/{{amount}}";
+            payLink = payLink.replace('{{amount}}', amount);
+            const messageText = `Hi! Please pay ${this.settings.currency}${amount} for your order at ${this.settings.storeName}: ${payLink}`;
+            let url = "";
+            if (smsMethod === 'sms') {
+                url = `sms:${customerPhone}?body=${encodeURIComponent(messageText)}`;
+            } else if (smsMethod === 'whatsapp') {
+                url = `https://wa.me/${customerPhone.replace('+', '')}?text=${encodeURIComponent(messageText)}`;
+            }
+            window.open(url, '_blank');
+            this.checkoutNotes = `Text payment request sent via ${smsMethod.toUpperCase()} to ${customerPhone}`;
+            this.showNotification(`Payment link sent to ${customerPhone}!`, "success");
+        },
 
         async submitCheckout() {
             if (this.paidAmount < this.cartTotal && this.paymentMethod === 'Cash') { this.showNotification("Cash tendered is less than total.", "error"); return; }
@@ -572,7 +726,7 @@ createApp({
             const timeDiff = currentTime - this.lastBarcodeKeyTime;
             this.lastBarcodeKeyTime = currentTime;
 
-            if (timeDiff < 50) {
+            if (timeDiff < 50 && !isInput) {
                 if (e.key === 'Enter') {
                     const matchedBarcode = this.barcodeBuffer.trim();
                     this.barcodeBuffer = '';
@@ -594,6 +748,17 @@ createApp({
                         this.isCashierModalOpen = false; this.isNfcWriterOpen = false; this.isShortcutsModalOpen = false;
                     }
                 }
+            }
+        },
+
+        handleSearchEnter() {
+            const query = this.searchQuery.trim();
+            if (!query) return;
+            const product = this.products.find(p => (p.barcode === query || p.sku.toLowerCase() === query.toLowerCase()) && p.status === 'active');
+            if (product) {
+                this.addToCart(product);
+                this.showNotification(`Added ${product.name} to cart.`, "success");
+                this.searchQuery = '';
             }
         },
 
@@ -679,14 +844,25 @@ createApp({
                     if (this.products.some(p => p.sku === productData.sku)) { this.showNotification("SKU already exists.", "error"); return; }
                     await db.products.add(productData);
                     this.showNotification(`Product "${productData.name}" created!`, "success");
-                } else { await db.products.update(this.productForm.id, productData); this.showNotification("Product updated!", "success"); }
+                } else {
+                    if (this.products.some(p => p.sku === productData.sku && p.id !== this.productForm.id)) { this.showNotification("SKU already exists.", "error"); return; }
+                    await db.products.update(this.productForm.id, productData);
+                    this.showNotification("Product updated!", "success");
+                }
                 this.isProductModalOpen = false;
                 this.broadcastSync('DATA_CHANGED');
                 await this.loadAllData();
             } catch (err) { console.error(err); this.showNotification("Product save failed.", "error"); }
         },
 
-        async deleteProduct(id) { if (confirm("Delete this product permanently?")) { await db.products.delete(id); this.showNotification("Product deleted.", "success"); await this.loadAllData(); } },
+        async deleteProduct(id) {
+            if (confirm("Delete this product permanently?")) {
+                await db.products.delete(id);
+                this.showNotification("Product deleted.", "success");
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
+            }
+        },
 
         openAddCategory() { this.categoryForm = { name: '', description: '' }; this.isCategoryModalOpen = true; },
 
@@ -698,6 +874,7 @@ createApp({
                 await db.categories.add({ name, description: this.categoryForm.description });
                 this.showNotification(`Category "${name}" added!`, "success");
                 this.isCategoryModalOpen = false;
+                this.broadcastSync('DATA_CHANGED');
                 await this.loadAllData();
             } catch (err) { console.error(err); }
         },
@@ -706,24 +883,57 @@ createApp({
 
         async saveCashier() {
             if (!this.cashierForm.name || !this.cashierForm.passcode) return;
-            try { await db.cashiers.add({ ...this.cashierForm }); this.showNotification("Cashier created!", "success"); this.isCashierModalOpen = false; await this.loadAllData(); } catch (err) { console.error(err); }
+            try {
+                await db.cashiers.add({ ...this.cashierForm });
+                this.showNotification("Cashier created!", "success");
+                this.isCashierModalOpen = false;
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
+            } catch (err) { console.error(err); }
         },
 
-        async deleteCashier(id) { if (confirm("Delete this cashier?")) { await db.cashiers.delete(id); this.showNotification("Cashier deleted.", "success"); await this.loadAllData(); } },
+        async deleteCashier(id) {
+            if (confirm("Delete this cashier?")) {
+                await db.cashiers.delete(id);
+                this.showNotification("Cashier deleted.", "success");
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
+            }
+        },
 
         openAddCustomer() { this.customerModalMode = 'add'; this.customerForm = { id: null, name: '', phone: '', email: '', address: '', notes: '' }; this.isCustomerModalOpen = true; },
         openEditCustomer(cust) { this.customerModalMode = 'edit'; this.customerForm = { ...cust }; this.isCustomerModalOpen = true; },
 
         async saveCustomer() {
+            if (this.customerForm.name.trim().toLowerCase() === "walk-in customer") {
+                this.showNotification("Cannot use reserved name 'Walk-in Customer'.", "error");
+                return;
+            }
             try {
                 const custData = { ...this.customerForm }; delete custData.id;
-                if (this.customerModalMode === 'add') { custData.points = 0; custData.createdAt = new Date().toISOString(); await db.customers.add(custData); this.showNotification("Customer created!", "success"); }
-                else { await db.customers.update(this.customerForm.id, custData); this.showNotification("Customer updated!", "success"); }
-                this.isCustomerModalOpen = false; await this.loadAllData();
+                if (this.customerModalMode === 'add') {
+                    custData.points = 0;
+                    custData.createdAt = new Date().toISOString();
+                    await db.customers.add(custData);
+                    this.showNotification("Customer created!", "success");
+                } else {
+                    await db.customers.update(this.customerForm.id, custData);
+                    this.showNotification("Customer updated!", "success");
+                }
+                this.isCustomerModalOpen = false;
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
             } catch (err) { console.error(err); }
         },
 
-        async deleteCustomer(id) { if (confirm("Delete this customer?")) { await db.customers.delete(id); this.showNotification("Customer deleted.", "success"); await this.loadAllData(); } },
+        async deleteCustomer(id) {
+            if (confirm("Delete this customer?")) {
+                await db.customers.delete(id);
+                this.showNotification("Customer deleted.", "success");
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
+            }
+        },
 
         openAddExpense() { this.expenseModalMode = 'add'; this.expenseForm = { id: null, date: new Date().toISOString().split('T')[0], category: 'Rent', amount: 0, description: '', paymentMethod: 'Bank Transfer' }; this.isExpenseModalOpen = true; },
         openEditExpense(exp) { this.expenseModalMode = 'edit'; this.expenseForm = { ...exp }; this.isExpenseModalOpen = true; },
@@ -733,11 +943,20 @@ createApp({
                 const expData = { ...this.expenseForm }; delete expData.id; expData.amount = Number(expData.amount);
                 if (this.expenseModalMode === 'add') { await db.expenses.add(expData); this.showNotification("Expense logged.", "success"); }
                 else { await db.expenses.update(this.expenseForm.id, expData); this.showNotification("Expense updated.", "success"); }
-                this.isExpenseModalOpen = false; await this.loadAllData();
+                this.isExpenseModalOpen = false;
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
             } catch (err) { console.error(err); }
         },
 
-        async deleteExpense(id) { if (confirm("Delete this expense?")) { await db.expenses.delete(id); this.showNotification("Expense deleted.", "success"); await this.loadAllData(); } },
+        async deleteExpense(id) {
+            if (confirm("Delete this expense?")) {
+                await db.expenses.delete(id);
+                this.showNotification("Expense deleted.", "success");
+                this.broadcastSync('DATA_CHANGED');
+                await this.loadAllData();
+            }
+        },
 
         openReceipt(sale) { this.currentReceiptSale = sale; this.isReceiptModalOpen = true; },
 
@@ -752,6 +971,7 @@ createApp({
                         if (cust) await db.customers.update(cust.id, { points: Math.max(0, (cust.points || 0) - Math.floor(sale.total)) });
                     }
                     this.showNotification(`Invoice ${sale.invoiceNumber} refunded.`, "success");
+                    this.broadcastSync('DATA_CHANGED');
                     await this.loadAllData();
                 } catch (err) { console.error(err); }
             }
@@ -965,7 +1185,7 @@ createApp({
     },
 
     mounted() {
-        try { this.darkMode = localStorage.getItem('pos_dark_mode') === 'true'; if (this.darkMode) document.documentElement.classList.add('dark'); } catch {}
+        try { this.darkMode = localStorage.getItem('pos_dark_mode') !== 'false'; if (this.darkMode) document.documentElement.classList.add('dark'); } catch {}
         this._syncId = 'apex-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
         this.loadAllData();
         window.addEventListener('keydown', this.handleGlobalKeypress);

@@ -4,11 +4,12 @@
    Navigations: network-first with index.html fallback.
    Skips Google SSO and Googleusercontent. */
 
-const CACHE_VERSION = "apex-pos-v2";
+const CACHE_VERSION = "apex-pos-v3";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./tailwind-compiled.css",
   "./db.js",
   "./app.js",
   "./manifest.json",
