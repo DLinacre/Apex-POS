@@ -2,13 +2,15 @@
 <html lang="en" class="h-full bg-slate-50 dark:bg-slate-900">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>Apex POS — Offline-First Point of Sale</title>
     <meta name="description" content="Apex POS is a 100% offline-first, client-side point of sale: register, inventory, customers, expenses, receipt printing, NFC tag support and reports — no server, no cloud, no account required.">
     <link rel="canonical" href="https://dlinacre.github.io/Apex-POS/">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="theme-color" content="#0f172a">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), fullscreen=(self), payment=(self)">
+
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
@@ -95,9 +97,7 @@
                 <!-- Brand logo -->
                 <div class="flex items-center justify-between h-16 px-4 bg-slate-950 border-b border-slate-800">
                     <div class="flex items-center space-x-2">
-                        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500 text-white font-bold">
-                            <i class="fa-solid fa-cash-register text-sm"></i>
-                        </div>
+                        <img src="assets/logo.svg" width="32" height="32" alt="Apex POS" class="w-8 h-8">
                         <span class="text-lg font-bold text-white tracking-wide">Apex<span class="text-emerald-500">POS</span></span>
                     </div>
                     <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-500/20">v2.0</span>
@@ -190,9 +190,7 @@
 
                 <div class="flex items-center h-16 px-6 bg-slate-950 border-b border-slate-800">
                     <div class="flex items-center space-x-2">
-                        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500 text-white font-bold">
-                            <i class="fa-solid fa-cash-register text-sm"></i>
-                        </div>
+                        <img src="assets/logo.svg" width="32" height="32" alt="Apex POS" class="w-8 h-8">
                         <span class="text-lg font-bold text-white tracking-wide">Apex<span class="text-emerald-500">POS</span></span>
                     </div>
                 </div>
