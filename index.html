@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50 dark:bg-slate-900">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex POS - Cloudless Point of Sale</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Identity Services (SSO Client-Side Login) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Dexie.js (IndexedDB wrapper) -->
+    <script src="https://unpkg.com/dexie@latest/dist/dexie.js"></script>
+    <!-- Vue 3 JS -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Chart.js for reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom stylesheet for print & scrollbars -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="h-full overflow-hidden text-slate-800 dark:text-slate-100 font-sans">
+    
+    <div id="app" class="flex h-full overflow-hidden" v-cloak>
+        
+        <!-- Sidebar Navigation (Desktop) -->
+        <aside class="hidden md:flex md:flex-shrink-0 md:flex-col w-64 bg-slate-900 border-r border-slate-800">
+            <div class="flex flex-col flex-1 min-h-0">
+                <!-- Brand logo -->
+                <div class="flex items-center justify-between h-16 px-4 bg-slate-950 border-b border-slate-800">
+                    <div class="flex items-center space-x-2">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500 text-white font-bold">
+                            <i class="fa-solid fa-cash-register text-sm"></i>
+                        </div>
+                        <span class="text-lg font-bold text-white tracking-wide">Apex<span class="text-emerald-500">POS</span></span>
+                    </div>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-medium border border-emerald-500/20">v2.0</span>
+                </div>
+                
+                <!-- Active Cashier Profile Display -->
+                <div class="p-4 bg-slate-950/40 border-b border-slate-800 flex items-center space-x-3">
+                    <img :src="activeCashier.avatar" class="w-10 h-10 rounded-full border border-slate-700 object-cover shadow-inner">
+                    <div class="truncate">
+                        <h4 class="text-xs font-black text-white truncate leading-tight">{{ activeCashier.name }}</h4>
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{{ activeCashier.role }}</span>
+                        <!-- Logout -->
+                        <button @click="logoutCashier" class="block text-[9px] text-red-400 font-bold hover:underline mt-0.5">
+                            <i class="fa-solid fa-right-from-bracket mr-1"></i>Sign Out
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Navigation menu -->
+                <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                    <button @click="changeView('dashboard')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'dashboard' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-chart-pie w-5 mr-3 text-lg"></i>
+                        Dashboard
+                    </button>
+
+                    <button @click="changeView('register')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'register' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-basket-shopping w-5 mr-3 text-lg"></i>
+                        POS Register
+                        <span v-if="cart.length > 0" class="ml-auto bg-emerald-500 text-slate-950 px-2 py-0.5 text-xs rounded-full font-bold">
+                            {{ cart.length }}
+                        </span>
+                    </button>
+
+                    <button @click="changeView('sales')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'sales' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-receipt w-5 mr-3 text-lg"></i>
+                        Sales History
+                    </button>
+
+                    <button @click="changeView('inventory')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'inventory' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-boxes-stacked w-5 mr-3 text-lg"></i>
+                        Inventory
+                        <span v-if="dashboardMetrics.lowStockCount > 0" class="ml-auto bg-amber-500/10 text-amber-500 px-2 py-0.5 text-xs rounded-full font-semibold border border-amber-500/20">
+                            {{ dashboardMetrics.lowStockCount }} Alert
+                        </span>
+                    </button>
+
+                    <button @click="changeView('customers')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'customers' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-users w-5 mr-3 text-lg"></i>
+                        Customers
+                    </button>
+
+                    <button @click="changeView('expenses')" 
+                            :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'expenses' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-file-invoice-dollar w-5 mr-3 text-lg"></i>
+                        Expenses
+                    </button>
+
+                    <div class="pt-4 mt-4 border-t border-slate-800">
+                        <button @click="changeView('settings')" 
+                                :class="['flex items-center w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-150', currentView === 'settings' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                            <i class="fa-solid fa-sliders w-5 mr-3 text-lg"></i>
+                            Settings
+                        </button>
+                    </div>
+                </nav>
+
+                <!-- Sidebar footer info -->
+                <div class="p-4 bg-slate-950 border-t border-slate-800 text-center">
+                    <p class="text-xs text-slate-500 font-medium">NFC & SSO Enabled</p>
+                    <p class="text-[10px] text-slate-600 mt-1">Free Lifetime local storage</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Sidebar Navigation (Mobile Drawer Overlay) -->
+        <div v-if="sidebarOpen" class="fixed inset-0 z-40 md:hidden flex" role="dialog" aria-modal="true">
+            <div class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm" @click="sidebarOpen = false"></div>
+            
+            <div class="relative flex flex-col w-full max-w-xs bg-slate-900 border-r border-slate-800 animate-slide-in">
+                <div class="absolute right-4 top-4">
+                    <button @click="sidebarOpen = false" class="text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center h-16 px-6 bg-slate-950 border-b border-slate-800">
+                    <div class="flex items-center space-x-2">
+                        <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500 text-white font-bold">
+                            <i class="fa-solid fa-cash-register text-sm"></i>
+                        </div>
+                        <span class="text-lg font-bold text-white tracking-wide">Apex<span class="text-emerald-500">POS</span></span>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-slate-950/40 border-b border-slate-800 flex items-center space-x-3">
+                    <img :src="activeCashier.avatar" class="w-10 h-10 rounded-full border border-slate-700 object-cover">
+                    <div>
+                        <h4 class="text-xs font-black text-white leading-tight">{{ activeCashier.name }}</h4>
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">{{ activeCashier.role }}</span>
+                        <button @click="logoutCashier" class="block text-[9px] text-red-400 font-bold hover:underline mt-0.5">Logout</button>
+                    </div>
+                </div>
+
+                <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+                    <button @click="changeView('dashboard')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'dashboard' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-chart-pie w-6 mr-3 text-xl"></i>
+                        Dashboard
+                    </button>
+                    <button @click="changeView('register')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'register' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-basket-shopping w-6 mr-3 text-xl"></i>
+                        POS Register
+                    </button>
+                    <button @click="changeView('sales')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'sales' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-receipt w-6 mr-3 text-xl"></i>
+                        Sales History
+                    </button>
+                    <button @click="changeView('inventory')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'inventory' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-boxes-stacked w-6 mr-3 text-xl"></i>
+                        Inventory
+                    </button>
+                    <button @click="changeView('customers')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'customers' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-users w-6 mr-3 text-xl"></i>
+                        Customers
+                    </button>
+                    <button @click="changeView('expenses')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'expenses' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-file-invoice-dollar w-6 mr-3 text-xl"></i>
+                        Expenses
+                    </button>
+                    <button @click="changeView('settings')" 
+                            :class="['flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors', currentView === 'settings' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white']">
+                        <i class="fa-solid fa-sliders w-6 mr-3 text-xl"></i>
+                        Settings
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content Wrapper -->
+        <div class="flex flex-col flex-1 min-w-0 overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
+            
+            <!-- Top Header Bar -->
+            <header class="flex items-center justify-between flex-shrink-0 h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 md:px-6 shadow-sm z-10 transition-colors duration-150">
+                <div class="flex items-center space-x-3">
+                    <button @click="sidebarOpen = true" class="md:hidden text-slate-600 dark:text-slate-300 hover:text-emerald-500 dark:hover:text-emerald-400 p-2">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                    
+                    <h1 class="text-lg md:text-xl font-bold text-slate-900 dark:text-white capitalize flex items-center gap-2">
+                        <i v-if="currentView === 'dashboard'" class="fa-solid fa-chart-pie text-emerald-500"></i>
+                        <i v-if="currentView === 'register'" class="fa-solid fa-basket-shopping text-emerald-500"></i>
+                        <i v-if="currentView === 'sales'" class="fa-solid fa-receipt text-emerald-500"></i>
+                        <i v-if="currentView === 'inventory'" class="fa-solid fa-boxes-stacked text-emerald-500"></i>
+                        <i v-if="currentView === 'customers'" class="fa-solid fa-users text-emerald-500"></i>
+                        <i v-if="currentView === 'expenses'" class="fa-solid fa-file-invoice-dollar text-emerald-500"></i>
+                        <i v-if="currentView === 'settings'" class="fa-solid fa-sliders text-emerald-500"></i>
+                        {{ currentView === 'register' ? 'POS Checkout Register' : currentView + ' Panel' }}
+                    </h1>
+                </div>
+
+                <!-- Global utilities -->
+                <div class="flex items-center space-x-4">
+                    <!-- NFC Phone Pulse Detector Widget -->
+                    <button @click="toggleNfcScanning" 
+                            :class="['p-2 rounded-full border flex items-center justify-center transition-all', 
+                                     nfcScanning ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30 ring-4 ring-emerald-500/10' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 border-transparent hover:text-slate-500']"
+                            title="Toggle Android NFC Auto-Detection">
+                        <i class="fa-solid fa-wifi rotate-90 text-sm" :class="{'animate-pulse': nfcScanning}"></i>
+                    </button>
+
+                    <!-- Low Stock Alert Bubble -->
+                    <button @click="changeView('inventory')" v-if="dashboardMetrics.lowStockCount > 0" 
+                            class="relative p-2 text-amber-500 bg-amber-500/10 rounded-full hover:bg-amber-500/20 transition-all border border-amber-500/10">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-slate-950">
+                            {{ dashboardMetrics.lowStockCount }}
+                        </span>
+                    </button>
+
+                    <!-- Theme Toggler -->
+                    <button @click="darkMode = !darkMode" 
+                            class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors duration-150 text-slate-600 dark:text-slate-300">
+                        <i v-if="darkMode" class="fa-solid fa-sun text-lg text-amber-400"></i>
+                        <i v-else class="fa-solid fa-moon text-lg text-slate-500"></i>
+                    </button>
+
+                    <div class="hidden sm:flex flex-col text-right">
+                        <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Store Profile</span>
+                        <span class="text-sm font-bold text-slate-900 dark:text-white">{{ settings.storeName }}</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Panel Body Container -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-900 transition-colors duration-150">
+                
+                <!-- VIEW 1: DASHBOARD / ANALYTICS PANEL -->
+                <div v-if="currentView === 'dashboard'" class="space-y-6">
+                    <!-- Dashboard Filter Header -->
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div class="space-y-1">
+                            <h2 class="text-base font-bold text-slate-900 dark:text-white">Business Analytics Range</h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Select reporting criteria to compute sales trend outputs.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button @click="reportRange = '7days'" :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all', reportRange === '7days' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700']">Last 7 Days</button>
+                            <button @click="reportRange = '30days'" :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all', reportRange === '30days' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700']">Last 30 Days</button>
+                            <button @click="reportRange = 'thisMonth'" :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all', reportRange === 'thisMonth' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700']">This Month</button>
+                            <button @click="reportRange = 'custom'" :class="['px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all', reportRange === 'custom' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700']">Custom Range</button>
+                        </div>
+                    </div>
+
+                    <!-- Custom Date Picker Row -->
+                    <div v-if="reportRange === 'custom'" class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm animate-fade-in">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Start Date</label>
+                            <input type="date" v-model="customStartDate" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
+                            <input type="date" v-model="customEndDate" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600">
+                        </div>
+                    </div>
+
+                    <!-- Metric KPI Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Revenue Card -->
+                        <div class="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center space-x-4">
+                            <div class="p-4 bg-emerald-500/10 text-emerald-500 rounded-xl">
+                                <i class="fa-solid fa-coins text-2xl"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gross Sales</span>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white">{{ formatCurrency(dashboardMetrics.netSales) }}</div>
+                                <span class="text-[10px] text-slate-400">Total processed revenue</span>
+                            </div>
+                        </div>
+
+                        <!-- Net Profit Card -->
+                        <div class="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center space-x-4">
+                            <div class="p-4 bg-indigo-500/10 text-indigo-500 rounded-xl">
+                                <i class="fa-solid fa-receipt text-2xl"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Net Profit</span>
+                                <div :class="['text-2xl font-black', dashboardMetrics.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500']">
+                                    {{ formatCurrency(dashboardMetrics.netProfit) }}
+                                </div>
+                                <span class="text-[10px] text-slate-400">Revenue minus cost & expenses</span>
+                            </div>
+                        </div>
+
+                        <!-- Transactions Count -->
+                        <div class="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center space-x-4">
+                            <div class="p-4 bg-blue-500/10 text-blue-500 rounded-xl">
+                                <i class="fa-solid fa-clipboard-check text-2xl"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sales Invoices</span>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white">{{ dashboardMetrics.transactionCount }}</div>
+                                <span class="text-[10px] text-slate-400">Basket size: {{ formatCurrency(dashboardMetrics.avgBasket) }} avg</span>
+                            </div>
+                        </div>
+
+                        <!-- Total Expenses logged -->
+                        <div class="p-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center space-x-4">
+                            <div class="p-4 bg-red-500/10 text-red-500 rounded-xl">
+                                <i class="fa-solid fa-file-invoice-dollar text-2xl"></i>
+                            </div>
+                            <div class="space-y-1">
+                                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Store Expenses</span>
+                                <div class="text-2xl font-black text-slate-900 dark:text-white">{{ formatCurrency(dashboardMetrics.totalExpenses) }}</div>
+                                <span class="text-[10px] text-slate-400">All registered shop costs</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Division -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Sales Revenue & Net Profit Trend</h3>
+                                <span class="text-xs text-slate-400">Daily summaries</span>
+                            </div>
+                            <div class="h-80">
+                                <canvas id="salesLineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 border-b border-slate-100 dark:border-slate-700 pb-3">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Sales Category Distribution</h3>
+                                <span class="text-xs text-slate-400">Revenue division</span>
+                            </div>
+                            <div class="h-80 flex items-center justify-center">
+                                <canvas id="categoryDoughnutChart" v-show="sales.length > 0"></canvas>
+                                <div v-show="sales.length === 0" class="text-center py-10">
+                                    <i class="fa-solid fa-pie-chart text-4xl text-slate-300 mb-2"></i>
+                                    <p class="text-xs text-slate-400">No category statistics available.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Warnings and alerts lists -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Low stock warning card -->
+                        <div class="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                                <span class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-500 animate-pulse"></i>
+                                    Critical Inventory Replenishments
+                                </span>
+                                <span class="text-xs bg-red-100 dark:bg-red-950 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full font-bold">
+                                    {{ dashboardMetrics.lowStockCount }} Critical
+                                </span>
+                            </div>
+                            <div class="space-y-3 overflow-y-auto max-h-60 pr-1">
+                                <div v-for="p in dashboardMetrics.lowStockProducts" :key="p.id" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                    <div class="flex items-center space-x-3">
+                                        <img :src="p.image" class="w-10 h-10 rounded object-cover border">
+                                        <div>
+                                            <p class="text-xs font-bold text-slate-900 dark:text-white">{{ p.name }}</p>
+                                            <p class="text-[10px] text-slate-400 font-semibold">{{ p.sku }} | Cat: {{ p.category }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xs font-black text-red-500">{{ p.stock }} items left</p>
+                                        <p class="text-[9px] text-slate-400">Trigger standard: {{ p.reorderPoint }}</p>
+                                    </div>
+                                </div>
+                                <div v-if="dashboardMetrics.lowStockCount === 0" class="text-center py-8 text-slate-400 text-xs">
+                                    <i class="fa-solid fa-shield-halved text-emerald-500 text-3xl mb-2"></i>
+                                    <p>All stock counts comply with margins.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent expenses logs -->
+                        <div class="p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-700">
+                                <span class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-solid fa-file-invoice-dollar text-slate-500"></i>
+                                    Recent Operating Expenses
+                                </span>
+                                <button @click="changeView('expenses')" class="text-xs text-emerald-500 font-bold hover:underline">Log Expense</button>
+                            </div>
+                            <div class="space-y-3 overflow-y-auto max-h-60 pr-1">
+                                <div v-for="e in expenses.slice(0, 5)" :key="e.id" class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-900 dark:text-white">{{ e.category }}</p>
+                                        <p class="text-[10px] text-slate-400 font-semibold">{{ e.description || 'General expense transaction' }}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-xs font-black text-red-500">-{{ formatCurrency(e.amount) }}</p>
+                                        <p class="text-[9px] text-slate-400">{{ formatDateTime(e.date).split(' ')[0] }}</p>
+                                    </div>
+                                </div>
+                                <div v-if="expenses.length === 0" class="text-center py-8 text-slate-400 text-xs">
+                                    <i class="fa-solid fa-mug-hot text-3xl text-slate-300 mb-2"></i>
+                                    <p>No operational costs registered today.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 2: POS REGISTER SCREEN (Checkout Drawer Side-by-Side) -->
+                <div v-if="currentView === 'register'" class="h-full flex flex-col lg:flex-row gap-6">
+                    
+                    <!-- Left: Search bar, Category selector, & Product Cards -->
+                    <div class="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm h-[calc(100vh-10rem)] lg:h-[calc(100vh-7.5rem)] overflow-hidden">
+                        <!-- Top Filters -->
+                        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                            <div class="relative flex-1">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400"></i>
+                                <input type="text" v-model="searchQuery" placeholder="Search product name, SKU or scan barcode..." 
+                                       class="w-full pl-9 pr-4 py-2 text-sm rounded-xl border bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-slate-900 dark:text-white">
+                            </div>
+                            <div class="w-full sm:w-48">
+                                <select v-model="selectedCategory" class="w-full px-3 py-2 text-sm rounded-xl border bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 focus:outline-none text-slate-900 dark:text-white">
+                                    <option value="All">All Categories</option>
+                                    <option v-for="cat in categories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Products Grid -->
+                        <div class="flex-1 overflow-y-auto pr-1">
+                            <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 products-grid">
+                                <div v-for="p in filteredProducts" :key="p.id" :id="'prod-card-' + p.id"
+                                     @click="addToCart(p)"
+                                     class="group relative flex flex-col bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden cursor-pointer hover:shadow-md hover:border-emerald-500 dark:hover:border-emerald-500 transition-all duration-200">
+                                    <div class="aspect-square bg-slate-200 dark:bg-slate-800 overflow-hidden relative border-b border-slate-200 dark:border-slate-600">
+                                        <img :src="p.image" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" alt="product image">
+                                        <div v-if="p.stock <= p.reorderPoint" class="absolute top-2 right-2 bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                                            {{ p.stock === 0 ? 'OUT' : p.stock + ' LEFT' }}
+                                        </div>
+                                    </div>
+                                    <div class="p-3 flex-1 flex flex-col justify-between">
+                                        <h4 class="text-xs font-bold text-slate-800 dark:text-slate-100 line-clamp-2 h-8 leading-tight group-hover:text-emerald-500 transition-colors">{{ p.name }}</h4>
+                                        <div class="flex items-end justify-between mt-2 pt-1 border-t border-slate-100 dark:border-slate-600">
+                                            <span class="text-[9px] text-slate-400 font-semibold">{{ p.sku }}</span>
+                                            <span class="text-sm font-black text-emerald-500 dark:text-emerald-400">{{ formatCurrency(p.retailPrice) }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="filteredProducts.length === 0" class="text-center py-20 text-slate-400">
+                                <i class="fa-solid fa-cube text-5xl mb-3 text-slate-300 dark:text-slate-600"></i>
+                                <p class="text-sm font-semibold">No active products match your filter.</p>
+                                <button @click="openAddProduct" class="mt-3 text-xs text-emerald-500 underline font-semibold hover:text-emerald-600">Create new product listing</button>
+                            </div>
+                        </div>
+
+                        <!-- Barcode Simulation Hint -->
+                        <div class="mt-4 pt-2 border-t border-slate-100 dark:border-slate-700 text-center flex items-center justify-between text-[11px] text-slate-400">
+                            <span><i class="fa-solid fa-barcode text-sm mr-1"></i> Barcode listeners active. Connect USB scanner & swipe SKU barcode.</span>
+                            <span class="hidden md:inline font-mono text-[9px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded border">Hotkeys: [R] Register [D] Dashboard [I] Inventory [S] Sales [C] Pay</span>
+                        </div>
+                    </div>
+
+                    <!-- Right Checkout / Cart Module Drawer -->
+                    <div class="w-full lg:w-96 flex flex-col bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg h-[calc(100vh-10rem)] lg:h-[calc(100vh-7.5rem)] overflow-hidden">
+                        <!-- Drawer Top Bar -->
+                        <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <div class="flex items-center space-x-2 flex-1 mr-2">
+                                <i class="fa-solid fa-user text-slate-400 text-sm"></i>
+                                <select v-model="selectedCustomer" class="flex-1 bg-transparent border-none text-xs font-bold text-slate-700 dark:text-slate-300 focus:ring-0 cursor-pointer focus:outline-none">
+                                    <option v-for="cust in customers" :key="cust.id" :value="cust">{{ cust.name }}</option>
+                                </select>
+                                <button @click="openAddCustomer" class="text-emerald-500 hover:text-emerald-600 p-1" title="Add Customer Profile">
+                                    <i class="fa-solid fa-plus-circle"></i>
+                                </button>
+                            </div>
+                            <button @click="clearCart" class="text-xs text-red-500 hover:text-red-600 font-bold px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20">
+                                Clear
+                            </button>
+                        </div>
+
+                        <!-- Cart Line Items -->
+                        <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                            <div v-for="item in cart" :key="item.id" 
+                                 class="flex items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl border border-slate-100 dark:border-slate-600">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{{ item.name }}</p>
+                                    <p class="text-[10px] text-slate-400 font-semibold mt-0.5">{{ formatCurrency(item.retailPrice) }} x {{ item.qty }}</p>
+                                </div>
+                                
+                                <div class="flex items-center space-x-1 flex-shrink-0">
+                                    <button @click="updateCartQty(item, -1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border dark:border-slate-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 text-xs">
+                                        <i class="fa-solid fa-minus"></i>
+                                    </button>
+                                    <span class="w-8 text-center text-xs font-black text-slate-900 dark:text-white">{{ item.qty }}</span>
+                                    <button @click="updateCartQty(item, 1)" class="w-6 h-6 rounded bg-white dark:bg-slate-800 border dark:border-slate-600 flex items-center justify-center text-slate-500 hover:bg-slate-100 text-xs">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                </div>
+
+                                <div class="text-right flex-shrink-0">
+                                    <p class="text-xs font-black text-slate-900 dark:text-white">{{ formatCurrency(item.retailPrice * item.qty) }}</p>
+                                    <button @click="removeFromCart(item)" class="text-slate-300 hover:text-red-500 transition-colors">
+                                        <i class="fa-solid fa-trash-can text-[10px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-if="cart.length === 0" class="text-center py-20 text-slate-300 dark:text-slate-600">
+                                <i class="fa-solid fa-basket-shopping text-5xl mb-2"></i>
+                                <p class="text-xs font-bold">Shopping basket is currently empty.</p>
+                            </div>
+                        </div>
+
+                        <!-- Suspended Carts -->
+                        <div v-if="heldCarts.length > 0" class="px-4 py-2 bg-amber-500/10 border-t border-b border-amber-500/20">
+                            <p class="text-[11px] font-bold text-amber-600 mb-1 flex items-center justify-between">
+                                <span><i class="fa-solid fa-pause-circle mr-1"></i> Suspended Shopping Baskets ({{ heldCarts.length }})</span>
+                            </p>
+                            <div class="flex gap-2 overflow-x-auto pb-1">
+                                <div v-for="hc in heldCarts" :key="hc.id" 
+                                     class="flex-shrink-0 max-w-[120px] bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/40 rounded px-2 py-1 text-[10px] flex items-center justify-between gap-1.5">
+                                    <div class="truncate">
+                                        <p class="font-bold truncate text-slate-700 dark:text-slate-300">{{ hc.customer ? hc.customer.name : 'Walk-in' }}</p>
+                                        <p class="text-[9px] text-slate-400">Items: {{ hc.items.length }}</p>
+                                    </div>
+                                    <div class="flex flex-col gap-0.5">
+                                        <button @click="resumeCart(hc)" class="text-emerald-500" title="Resume cart"><i class="fa-solid fa-play-circle"></i></button>
+                                        <button @click="deleteHeldCart(hc)" class="text-red-500" title="Delete held cart"><i class="fa-solid fa-times-circle"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Calculations Panel -->
+                        <div class="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                            <div class="flex items-center justify-between text-xs font-semibold text-slate-500">
+                                <span>Subtotal</span>
+                                <span>{{ formatCurrency(cartSubtotal) }}</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-between text-xs">
+                                <div class="flex items-center space-x-1.5 text-slate-500">
+                                    <span>Discount</span>
+                                    <button @click="toggleDiscountType" class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                        {{ cartDiscountType === 'fixed' ? '£' : '%' }}
+                                    </button>
+                                </div>
+                                <button @click="triggerCartDiscount" class="text-slate-900 dark:text-white font-bold hover:underline flex items-center gap-1">
+                                    <i class="fa-solid fa-pen text-[9px]"></i>
+                                    -{{ cartDiscountType === 'fixed' ? formatCurrency(cartDiscount) : cartDiscount + '%' }}
+                                </button>
+                            </div>
+
+                            <div class="flex items-center justify-between text-xs text-slate-500">
+                                <span>Tax ({{ settings.taxRate }}% VAT inclusive)</span>
+                                <span>{{ formatCurrency(cartTaxAmount) }}</span>
+                            </div>
+
+                            <div class="flex items-center justify-between border-t border-slate-200 dark:border-slate-700 pt-2 text-slate-900 dark:text-white">
+                                <span class="text-sm font-black uppercase">Grand Total</span>
+                                <span class="text-lg font-black text-emerald-500 dark:text-emerald-400">{{ formatCurrency(cartTotal) }}</span>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2 pt-2">
+                                <button @click="suspendCart" class="col-span-1 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl text-xs transition-colors">
+                                    <i class="fa-solid fa-pause block mb-0.5 text-sm"></i> Hold
+                                </button>
+                                <button @click="openCheckout" class="col-span-2 py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl text-sm transition-all shadow-md flex flex-col items-center justify-center">
+                                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-credit-card text-base"></i> CHECKOUT</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 3: SALES HISTORY PANEL -->
+                <div v-if="currentView === 'sales'" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">All Transacted Invoices</h2>
+                            <p class="text-xs text-slate-500">Review historical orders, view print receipts, or trigger inventory refunds.</p>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-400 uppercase">
+                                    <th class="py-3 px-4">Invoice No</th>
+                                    <th class="py-3 px-4">Timestamp</th>
+                                    <th class="py-3 px-4">Customer</th>
+                                    <th class="py-3 px-4">Cashier</th>
+                                    <th class="py-3 px-4">Total Amount</th>
+                                    <th class="py-3 px-4">Net Profit</th>
+                                    <th class="py-3 px-4">Payment Method</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                                <tr v-for="sale in sales" :key="sale.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                    <td class="py-3 px-4 font-bold text-slate-950 dark:text-white">{{ sale.invoiceNumber }}</td>
+                                    <td class="py-3 px-4">{{ formatDateTime(sale.date) }}</td>
+                                    <td class="py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">{{ sale.customerName }}</td>
+                                    <td class="py-3 px-4 text-xs font-medium text-slate-400">{{ sale.cashierName || 'System Terminal' }}</td>
+                                    <td class="py-3 px-4 font-black text-emerald-500">{{ formatCurrency(sale.total) }}</td>
+                                    <td class="py-3 px-4 font-semibold text-indigo-500">{{ formatCurrency(sale.profit) }}</td>
+                                    <td class="py-3 px-4"><span class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 text-xs">{{ sale.paymentMethod }}</span></td>
+                                    <td class="py-3 px-4">
+                                        <span :class="['px-2 py-0.5 rounded-full text-[10px] font-black uppercase border', 
+                                                       sale.status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500']">
+                                            {{ sale.status }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4 text-right space-x-2">
+                                        <button @click="openReceipt(sale)" class="text-slate-400 hover:text-emerald-500 px-2 py-1">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                        <button @click="refundSale(sale)" v-if="sale.status === 'completed'" class="text-slate-400 hover:text-red-500 px-2 py-1">
+                                            <i class="fa-solid fa-rotate-left"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="sales.length === 0">
+                                    <td colspan="9" class="py-10 text-center text-slate-400">No transactions recorded inside the database yet.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 4: INVENTORY PANEL -->
+                <div v-if="currentView === 'inventory'" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Active Product Listings</h2>
+                            <p class="text-xs text-slate-500">Create, update, delete products or do rapid spreadsheet imports.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button @click="triggerCSVImport" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-slate-600">
+                                <i class="fa-solid fa-upload"></i> Import CSV
+                            </button>
+                            <input type="file" id="csv-file-input" class="hidden" accept=".csv" @change="importProductsCSV">
+                            
+                            <button @click="exportProductsCSV" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-slate-600">
+                                <i class="fa-solid fa-download"></i> Export CSV
+                            </button>
+
+                            <button @click="openAddCategory" class="px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-slate-600">
+                                <i class="fa-solid fa-folder-plus"></i> New Category
+                            </button>
+
+                            <button @click="openAddProduct" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5">
+                                <i class="fa-solid fa-plus"></i> Create Product
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-400 uppercase">
+                                    <th class="py-3 px-4">Item details</th>
+                                    <th class="py-3 px-4">SKU / Barcode</th>
+                                    <th class="py-3 px-4">Category</th>
+                                    <th class="py-3 px-4">Cost Price</th>
+                                    <th class="py-3 px-4">Retail Price</th>
+                                    <th class="py-3 px-4">In Stock</th>
+                                    <th class="py-3 px-4">NFC Coding</th>
+                                    <th class="py-3 px-4">Status</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                                <tr v-for="p in products" :key="p.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                    <td class="py-3 px-4">
+                                        <div class="flex items-center space-x-3">
+                                            <img :src="p.image" class="w-10 h-10 rounded object-cover border dark:border-slate-600">
+                                            <div>
+                                                <p class="font-bold text-slate-950 dark:text-white leading-tight">{{ p.name }}</p>
+                                                <p class="text-xs text-slate-400 truncate max-w-xs">{{ p.description || 'No item descriptions details' }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-4 font-mono text-xs">
+                                        <p class="font-semibold text-slate-700 dark:text-slate-300">{{ p.sku }}</p>
+                                        <p class="text-[10px] text-slate-400" v-if="p.barcode"><i class="fa-solid fa-barcode text-[9px] mr-1"></i>{{ p.barcode }}</p>
+                                    </td>
+                                    <td class="py-3 px-4"><span class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 font-semibold text-xs text-slate-600 dark:text-slate-300">{{ p.category }}</span></td>
+                                    <td class="py-3 px-4 font-semibold text-slate-500">{{ formatCurrency(p.costPrice) }}</td>
+                                    <td class="py-3 px-4 font-bold text-slate-900 dark:text-white">{{ formatCurrency(p.retailPrice) }}</td>
+                                    <td class="py-3 px-4">
+                                        <div class="flex flex-col">
+                                            <span :class="['font-bold', p.stock <= 0 ? 'text-red-500' : p.stock <= p.reorderPoint ? 'text-amber-500' : 'text-slate-900 dark:text-white']">
+                                                {{ p.stock }} units
+                                            </span>
+                                            <span class="text-[9px] text-slate-400 font-medium">Reorder at: {{ p.reorderPoint }}</span>
+                                        </div>
+                                    </td>
+                                    <!-- NFC programming button -->
+                                    <td class="py-3 px-4">
+                                        <button @click="openNfcWriter('product', p)" class="px-2 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded flex items-center gap-1 hover:bg-emerald-500/10 hover:text-emerald-500 hover:border-emerald-500/30 transition-colors">
+                                            <i class="fa-solid fa-wifi rotate-90 text-[10px]"></i> Write Tag
+                                        </button>
+                                    </td>
+                                    <td class="py-3 px-4">
+                                        <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border', 
+                                                       p.status === 'active' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-slate-100 border-slate-200 text-slate-400']">
+                                            {{ p.status }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4 text-right space-x-2">
+                                        <button @click="openEditProduct(p)" class="text-slate-400 hover:text-emerald-500 px-2 py-1">
+                                            <i class="fa-solid fa-pen"></i>
+                                        </button>
+                                        <button @click="deleteProduct(p.id)" class="text-slate-400 hover:text-red-500 px-2 py-1">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr v-if="products.length === 0">
+                                    <td colspan="9" class="py-10 text-center text-slate-400">No inventory found. Click 'Create Product' to load stock records.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 5: CUSTOMERS DIRECTORY -->
+                <div v-if="currentView === 'customers'" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Loyal Customers Directory</h2>
+                            <p class="text-xs text-slate-500">Track customer spending, store accounts, and manage loyalty points credits.</p>
+                        </div>
+                        <button @click="openAddCustomer" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus"></i> Add Customer Profile
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div v-for="c in customers" :key="c.id" class="p-5 bg-slate-50 dark:bg-slate-700/40 rounded-xl border border-slate-200 dark:border-slate-600 relative overflow-hidden flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-start justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-500 flex items-center justify-center font-black">
+                                            {{ c.name.charAt(0) }}
+                                        </div>
+                                        <div>
+                                            <h3 class="font-bold text-slate-950 dark:text-white">{{ c.name }}</h3>
+                                            <span class="text-[10px] text-slate-400">Customer ID: #{{ c.id }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-900/50 text-indigo-500 dark:text-indigo-400 px-3 py-1 rounded-lg text-right">
+                                        <p class="text-[9px] font-bold uppercase tracking-wider">Points</p>
+                                        <p class="text-sm font-black leading-none">{{ c.points || 0 }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 space-y-1 text-xs text-slate-600 dark:text-slate-300">
+                                    <p v-if="c.phone && c.phone !== '-'"><i class="fa-solid fa-phone w-4 text-slate-400"></i>{{ c.phone }}</p>
+                                    <p v-if="c.email && c.email !== '-'"><i class="fa-solid fa-envelope w-4 text-slate-400"></i>{{ c.email }}</p>
+                                    <p v-if="c.address && c.address !== '-'"><i class="fa-solid fa-location-dot w-4 text-slate-400"></i>{{ c.address }}</p>
+                                    <p class="mt-2 text-[11px] text-slate-400 italic" v-if="c.notes"><i class="fa-solid fa-sticky-note mr-1"></i>{{ c.notes }}</p>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-600 flex items-center justify-between">
+                                <button @click="openNfcWriter('customer', c)" class="text-xs bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 px-2 py-1 rounded text-slate-700 dark:text-slate-100 font-bold flex items-center gap-1">
+                                    <i class="fa-solid fa-wifi rotate-90 text-[10px]"></i> NFC Badge
+                                </button>
+                                <div class="flex items-center space-x-2">
+                                    <button v-if="c.name !== 'Walk-in Customer'" @click="openEditCustomer(c)" class="text-xs text-slate-500 hover:text-emerald-500 font-bold px-2 py-1">Edit</button>
+                                    <button v-if="c.name !== 'Walk-in Customer'" @click="deleteCustomer(c.id)" class="text-xs text-slate-400 hover:text-red-500 font-bold px-2 py-1">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 6: EXPENSE TRACKER PANEL -->
+                <div v-if="currentView === 'expenses'" class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Store Operational Expenditures</h2>
+                            <p class="text-xs text-slate-500">Log marketing, utilities, supplier invoices, or rent to track final net profits.</p>
+                        </div>
+                        <button @click="openAddExpense" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus"></i> Log Expense Entry
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-400 uppercase">
+                                    <th class="py-3 px-4">Expense Date</th>
+                                    <th class="py-3 px-4">Category</th>
+                                    <th class="py-3 px-4">Description</th>
+                                    <th class="py-3 px-4">Payment mode</th>
+                                    <th class="py-3 px-4">Charged Amount</th>
+                                    <th class="py-3 px-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                                <tr v-for="e in expenses" :key="e.id" class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                    <td class="py-3 px-4 font-semibold text-slate-950 dark:text-white">{{ formatDateTime(e.date).split(' ')[0] }}</td>
+                                    <td class="py-3 px-4"><span class="px-2.5 py-1 rounded bg-red-500/10 text-red-500 dark:text-red-400 font-black text-xs uppercase">{{ e.category }}</span></td>
+                                    <td class="py-3 px-4 text-slate-600 dark:text-slate-300">{{ e.description || 'General expense entry' }}</td>
+                                    <td class="py-3 px-4 font-medium">{{ e.paymentMethod }}</td>
+                                    <td class="py-3 px-4 font-black text-red-500">{{ formatCurrency(e.amount) }}</td>
+                                    <td class="py-3 px-4 text-right space-x-2">
+                                        <button @click="openEditExpense(e)" class="text-slate-400 hover:text-emerald-500 px-2 py-1"><i class="fa-solid fa-pen"></i></button>
+                                        <button @click="deleteExpense(e.id)" class="text-slate-400 hover:text-red-500 px-2 py-1"><i class="fa-solid fa-trash-can"></i></button>
+                                    </td>
+                                </tr>
+                                <tr v-if="expenses.length === 0">
+                                    <td colspan="6" class="py-10 text-center text-slate-400">No expenses recorded. Log your first expenditure above.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+                <!-- VIEW 7: SYSTEM SETTINGS -->
+                <div v-if="currentView === 'settings'" class="space-y-6">
+                    <!-- Top SSO Login Area & NFC Desktop Simulator Widget -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Automated Google Profile SSO Card -->
+                        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
+                            <div>
+                                <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-brands fa-google text-red-500"></i>
+                                    Google Sign-In Automation
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">Authenticate profiles client-side for auto-saving cashier session credentials.</p>
+                            </div>
+                            
+                            <!-- Google Sign-in script placement -->
+                            <div class="py-3 flex items-center justify-between border-t border-b border-slate-100 dark:border-slate-700">
+                                <div id="google-signin-button"></div>
+                                <div v-if="activeCashier.role === 'Google User'" class="text-right text-xs">
+                                    <p class="font-bold text-slate-900 dark:text-white">Active Session Connected</p>
+                                    <p class="text-slate-400">{{ activeCashier.email }}</p>
+                                </div>
+                                <div v-else class="text-xs text-slate-400">No active Google account session.</div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 italic">
+                                * To configure your live custom workspace credentials, change the 'Google Client ID' parameter under System Settings.
+                            </div>
+                        </div>
+
+                        <!-- Web NFC Hardware Simulator Widget -->
+                        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
+                            <div>
+                                <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-solid fa-wifi rotate-90 text-emerald-500 animate-pulse"></i>
+                                    NFC Phone Automation Simulator
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1">Simulate scanning smartcards instantly on desktops without physical NFC antennas!</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                                <button @click="simulateNfcTap('employee:manager')" class="py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl text-left px-3 text-xs font-bold border dark:border-slate-600 flex items-center gap-2">
+                                    <i class="fa-solid fa-user-shield text-indigo-500"></i> Login: Admin
+                                </button>
+                                <button @click="simulateNfcTap('employee:5555')" class="py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl text-left px-3 text-xs font-bold border dark:border-slate-600 flex items-center gap-2">
+                                    <i class="fa-solid fa-user-tie text-emerald-500"></i> Login: Emma Watson
+                                </button>
+                                <button @click="simulateNfcTap('customer:Sarah Jenkins')" class="py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl text-left px-3 text-xs font-bold border dark:border-slate-600 flex items-center gap-2">
+                                    <i class="fa-solid fa-user-tag text-blue-500"></i> VIP: Sarah Jenkins
+                                </button>
+                                <button @click="simulateNfcTap('product:COF-001')" class="py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl text-left px-3 text-xs font-bold border dark:border-slate-600 flex items-center gap-2">
+                                    <i class="fa-solid fa-mug-hot text-amber-500"></i> Add: Organic Coffee
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Left settings form -->
+                        <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-6">
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Store & System Configurations</h3>
+                                <p class="text-xs text-slate-500 mt-1">Configure VAT percentages, store contacts, and print-out receipts layouts.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Company/Store Name</label>
+                                    <input type="text" v-model="settings.storeName" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Store Helpline Phone</label>
+                                    <input type="text" v-model="settings.storePhone" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Physical Store Address</label>
+                                    <input type="text" v-model="settings.storeAddress" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Store Email</label>
+                                    <input type="email" v-model="settings.storeEmail" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Currency Symbol</label>
+                                    <input type="text" v-model="settings.currency" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Value Added Tax Rate (% VAT)</label>
+                                    <input type="number" v-model="settings.taxRate" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Low Stock Alert Threshold</label>
+                                    <input type="number" v-model="settings.lowStockAlert" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Google API Client ID (SSO)</label>
+                                    <input type="text" v-model="settings.googleClientId" placeholder="e.g. xxxxxxxx.apps.googleusercontent.com" class="w-full px-3 py-2 text-xs border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white font-mono">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Thermal Receipt Header Terms</label>
+                                    <input type="text" v-model="settings.receiptHeader" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white">
+                                </div>
+                                <div class="sm:col-span-2">
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Thermal Receipt Footer Terms</label>
+                                    <textarea v-model="settings.receiptFooter" rows="2" class="w-full px-3 py-2 text-sm border rounded-lg bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end">
+                                <button @click="saveSettings" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md">
+                                    <i class="fa-solid fa-save"></i> Apply System Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right backups and cashier manager lists -->
+                        <div class="space-y-6">
+                            <!-- Local Employees list and creation -->
+                            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
+                                <div class="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+                                    <h4 class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Registered Cashiers Directory</h4>
+                                    <button @click="openAddCashier" class="text-xs text-emerald-500 font-bold hover:underline">Add Staff</button>
+                                </div>
+                                <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    <div v-for="emp in cashiers" :key="emp.id" class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-xs">
+                                        <div>
+                                            <p class="font-bold text-slate-900 dark:text-white leading-tight">{{ emp.name }}</p>
+                                            <p class="text-[10px] text-slate-400 font-semibold">{{ emp.role }} | Code: {{ emp.passcode }}</p>
+                                        </div>
+                                        <div class="flex items-center space-x-1">
+                                            <button @click="openNfcWriter('employee', emp)" class="p-1 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-100 rounded" title="Program NFC Keycard">
+                                                <i class="fa-solid fa-wifi rotate-90 text-[9px]"></i>
+                                            </button>
+                                            <button @click="deleteCashier(emp.id)" class="p-1 text-slate-400 hover:text-red-500 rounded">
+                                                <i class="fa-solid fa-trash text-[10px]"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Database Backups and clean restore settings -->
+                            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6 space-y-4">
+                                <div>
+                                    <h3 class="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Database Backups & Cloudless Control</h3>
+                                    <p class="text-[11px] text-slate-500 mt-1">Complete sandbox control of offline-first IndexedDB states.</p>
+                                </div>
+
+                                <div class="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-xs font-bold">
+                                    <button @click="exportDatabase" class="w-full py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl border dark:border-slate-600 flex items-center justify-between px-4 text-slate-700 dark:text-slate-200 transition-colors">
+                                        <span>Download Database Backup (JSON)</span>
+                                        <i class="fa-solid fa-download text-emerald-500"></i>
+                                    </button>
+
+                                    <button @click="triggerImportDatabase" class="w-full py-2.5 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 rounded-xl border dark:border-slate-600 flex items-center justify-between px-4 text-slate-700 dark:text-slate-200 transition-colors">
+                                        <span>Restore Database Backup (JSON)</span>
+                                        <i class="fa-solid fa-upload text-blue-500"></i>
+                                    </button>
+                                    <input type="file" id="import-file-input" class="hidden" accept=".json" @change="importDatabase">
+
+                                    <button @click="loadDemoPreset" class="w-full py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/10 rounded-xl flex items-center justify-between px-4 transition-colors">
+                                        <span>Reset System & Reseed Demo Data</span>
+                                        <i class="fa-solid fa-rotate-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+
+
+        <!-- --- SYSTEM MODAL DIALOGUES OVERLAYS --- -->
+
+        <!-- MODAL A: OPTIMIZED TACTILE CHECKOUT PAYMENT SCREEN -->
+        <div v-if="isCheckoutModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+                <!-- Header -->
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <i class="fa-solid fa-cash-register text-emerald-500"></i>
+                        Checkout Register
+                    </h3>
+                    <button @click="isCheckoutModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <!-- Form Panel Body (Split Column for Touch keypads & details) -->
+                <div class="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                    <!-- Left Column: Calculations breakdown & payment modes -->
+                    <div class="space-y-5">
+                        <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center space-y-0.5">
+                            <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Amount Due</span>
+                            <div class="text-3xl font-black text-emerald-500 dark:text-emerald-400">{{ formatCurrency(cartTotal) }}</div>
+                        </div>
+
+                        <!-- Payment selector tabs -->
+                        <div class="grid grid-cols-3 gap-2">
+                            <button v-for="method in ['Cash', 'Card', 'Mobile Pay']" :key="method"
+                                    @click="setPaymentMethod(method)"
+                                    :class="['py-3 border font-black rounded-xl text-xs flex flex-col items-center justify-center gap-1.5 transition-all', 
+                                             paymentMethod === method ? 'bg-emerald-500 border-emerald-500 text-slate-950 shadow-md' : 'border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300']">
+                                <i :class="['text-base', 
+                                           method === 'Cash' ? 'fa-solid fa-money-bill-wave' : 
+                                           method === 'Card' ? 'fa-solid fa-credit-card' : 'fa-solid fa-mobile-screen-button']"></i>
+                                {{ method }}
+                            </button>
+                        </div>
+
+                        <!-- Dynamic change calculator rows -->
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cash Tendered</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-2.5 font-bold text-slate-400">{{ settings.currency }}</span>
+                                    <input type="number" step="0.01" v-model="paidAmount" class="w-full pl-7 pr-3 py-2 text-sm font-black border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tendered Change Back</label>
+                                <div :class="['w-full px-3 py-2 rounded-xl border text-sm font-black transition-colors', 
+                                             cartChangeAmount < 0 ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-900/55 text-red-500' : 'bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-emerald-500']">
+                                    {{ cartChangeAmount < 0 ? 'Shortfall: ' + formatCurrency(Math.abs(cartChangeAmount)) : formatCurrency(cartChangeAmount) }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Invoice Notes (Optional)</label>
+                            <input type="text" v-model="checkoutNotes" placeholder="Delivery, tables, reference codes..." class="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-xs text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Tactile cash keys & interactive numpad -->
+                    <div class="space-y-4">
+                        <!-- Quick cash buttons -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Cash Options</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button @click="setQuickTender('exact')" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">Exact</button>
+                                <button @click="setQuickTender(5)" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">£5.00</button>
+                                <button @click="setQuickTender(10)" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">£10.00</button>
+                                <button @click="setQuickTender(20)" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">£20.00</button>
+                                <button @click="setQuickTender(50)" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">£50.00</button>
+                                <button @click="setQuickTender(100)" class="py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 hover:border-emerald-500 rounded-lg text-xs font-black border dark:border-slate-600 text-slate-900 dark:text-slate-100 transition-all">£100.00</button>
+                            </div>
+                        </div>
+
+                        <!-- Tactile keypad -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Tactile Numpad Entry</label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button" @click="addTenderDigit('7')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">7</button>
+                                <button type="button" @click="addTenderDigit('8')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">8</button>
+                                <button type="button" @click="addTenderDigit('9')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">9</button>
+                                
+                                <button type="button" @click="addTenderDigit('4')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">4</button>
+                                <button type="button" @click="addTenderDigit('5')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">5</button>
+                                <button type="button" @click="addTenderDigit('6')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">6</button>
+                                
+                                <button type="button" @click="addTenderDigit('1')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">1</button>
+                                <button type="button" @click="addTenderDigit('2')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">2</button>
+                                <button type="button" @click="addTenderDigit('3')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">3</button>
+                                
+                                <button type="button" @click="addTenderDigit('0')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">0</button>
+                                <button type="button" @click="addTenderDigit('.')" class="py-3 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-sm border dark:border-slate-600 text-slate-800 dark:text-slate-100">.</button>
+                                <button type="button" @click="backspaceTender" class="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-red-500 rounded-xl font-bold text-sm border dark:border-slate-600 flex items-center justify-center">
+                                    <i class="fa-solid fa-delete-left"></i>
+                                </button>
+                            </div>
+                            <button type="button" @click="clearTender" class="w-full mt-2 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-red-50 rounded-lg text-xs font-semibold text-slate-500 hover:text-red-500 transition-colors">Clear Input</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                    <button @click="isCheckoutModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                    <button @click="submitCheckout" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-circle-check"></i> Complete Sale
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- MODAL B: DETAILED RECEIPTS DISPLAY MODAL -->
+        <div v-if="isReceiptModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Receipt Invoice Printout</h3>
+                    <button @click="isReceiptModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <!-- Body (Thermal receipt) -->
+                <div class="p-5 overflow-y-auto bg-slate-100 dark:bg-slate-900/60 flex-1">
+                    <div id="receipt-print-area" class="bg-white p-5 border shadow-sm mx-auto rounded-lg text-slate-950 font-mono text-xs leading-relaxed max-w-[80mm] border-dashed border-slate-300">
+                        <div class="text-center space-y-1 mb-4">
+                            <h2 class="text-sm font-black tracking-wide uppercase">{{ settings.storeName }}</h2>
+                            <p class="text-[9px] text-slate-500">{{ settings.storeAddress }}</p>
+                            <p class="text-[9px] text-slate-500">Tel: {{ settings.storePhone }}</p>
+                            <p class="text-[9px] text-slate-500">Email: {{ settings.storeEmail }}</p>
+                        </div>
+
+                        <div class="border-b border-dashed border-slate-300 my-2"></div>
+
+                        <div class="space-y-0.5 text-[9px] text-slate-600 font-bold">
+                            <p>Invoice No: {{ currentReceiptSale?.invoiceNumber }}</p>
+                            <p>Timestamp: {{ formatDateTime(currentReceiptSale?.date) }}</p>
+                            <p>Customer: {{ currentReceiptSale?.customerName }}</p>
+                            <p>Cashier: {{ currentReceiptSale?.cashierName || 'System Terminal' }}</p>
+                        </div>
+
+                        <div class="border-b border-dashed border-slate-300 my-2"></div>
+
+                        <table class="w-full text-left text-[9px]">
+                            <thead>
+                                <tr class="font-bold border-b border-slate-200 pb-1 text-slate-700">
+                                    <th class="w-1/2 py-1">Item Description</th>
+                                    <th class="w-1/6 py-1 text-center">Qty</th>
+                                    <th class="w-1/3 py-1 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="item in currentReceiptSale?.items" :key="item.productId" class="border-b border-slate-100">
+                                    <td class="py-1">
+                                        <p class="font-bold leading-tight">{{ item.name }}</p>
+                                        <p class="text-[8px] text-slate-400">@ {{ formatCurrency(item.price) }}</p>
+                                    </td>
+                                    <td class="py-1 text-center">{{ item.qty }}</td>
+                                    <td class="py-1 text-right font-bold">{{ formatCurrency(item.total) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="border-b border-dashed border-slate-300 my-2"></div>
+
+                        <div class="space-y-1 text-[10px]">
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Subtotal:</span>
+                                <span>{{ formatCurrency(currentReceiptSale?.subtotal) }}</span>
+                            </div>
+                            <div class="flex justify-between" v-if="currentReceiptSale?.discount > 0">
+                                <span class="text-slate-500">Discounts Applied:</span>
+                                <span>-{{ formatCurrency(currentReceiptSale?.discount) }}</span>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-slate-400">
+                                <span>VAT ({{ settings.taxRate }}% VAT incl.):</span>
+                                <span>{{ formatCurrency(currentReceiptSale?.tax) }}</span>
+                            </div>
+                            <div class="flex justify-between font-black border-t pt-1 text-xs">
+                                <span>GRAND TOTAL:</span>
+                                <span>{{ formatCurrency(currentReceiptSale?.total) }}</span>
+                            </div>
+
+                            <div class="border-b border-dashed border-slate-200 my-1"></div>
+
+                            <div class="flex justify-between">
+                                <span class="text-slate-500">Paid Method ({{ currentReceiptSale?.paymentMethod }}):</span>
+                                <span>{{ formatCurrency(currentReceiptSale?.paidAmount || currentReceiptSale?.total) }}</span>
+                            </div>
+                            <div class="flex justify-between font-bold" v-if="currentReceiptSale?.paymentMethod === 'Cash'">
+                                <span class="text-slate-500">Tendered Change:</span>
+                                <span>{{ formatCurrency(currentReceiptSale?.changeAmount || 0) }}</span>
+                            </div>
+                        </div>
+
+                        <div class="border-b border-dashed border-slate-300 my-3"></div>
+
+                        <div class="text-center space-y-1">
+                            <p class="font-bold text-[9px] tracking-widest uppercase">{{ settings.receiptHeader }}</p>
+                            <p class="text-[7px] text-slate-500 italic">{{ settings.receiptFooter }}</p>
+                            <div class="flex flex-col items-center pt-2 gap-0.5">
+                                <i class="fa-solid fa-barcode text-3xl text-slate-800"></i>
+                                <span class="text-[7px] text-slate-400 font-mono">{{ currentReceiptSale?.invoiceNumber }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                    <button @click="emailReceipt" class="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-envelope"></i> Email
+                    </button>
+                    <button @click="printReceipt" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-print"></i> Print Receipt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- MODAL C: CREATE OR EDIT PRODUCT FORM -->
+        <div v-if="isProductModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-box-open text-emerald-500"></i>
+                        {{ productModalMode === 'add' ? 'Create New Product Listing' : 'Edit Product Configuration' }}
+                    </h3>
+                    <button @click="isProductModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <form @submit.prevent="saveProduct" class="p-6 overflow-y-auto space-y-4 flex-1">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Product Title *</label>
+                            <input type="text" v-model="productForm.name" required placeholder="e.g. Organic Roast Coffee Beans" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">SKU Code (Unique) *</label>
+                            <input type="text" v-model="productForm.sku" required :disabled="productModalMode === 'edit'" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Barcode / EAN Code</label>
+                            <input type="text" v-model="productForm.barcode" placeholder="e.g. 8801234567890" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Inventory Category *</label>
+                            <select v-model="productForm.category" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:outline-none">
+                                <option v-for="cat in categories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Listing Status</label>
+                            <select v-model="productForm.status" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:outline-none">
+                                <option value="active">Active (On Sale)</option>
+                                <option value="inactive">Suspended (Hidden)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cost Price *</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 font-bold text-slate-400">{{ settings.currency }}</span>
+                                <input type="number" step="0.01" required v-model.number="productForm.costPrice" class="w-full pl-7 pr-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-sm text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Retail Selling Price *</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 font-bold text-slate-400">{{ settings.currency }}</span>
+                                <input type="number" step="0.01" required v-model.number="productForm.retailPrice" class="w-full pl-7 pr-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-sm text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Current Physical Stock *</label>
+                            <input type="number" required v-model.number="productForm.stock" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Reorder Point Alert</label>
+                            <input type="number" required v-model.number="productForm.reorderPoint" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Product Image URL</label>
+                            <input type="url" v-model="productForm.image" placeholder="Leave empty for solid generic placeholder image" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Product Description</label>
+                            <textarea v-model="productForm.description" rows="2" placeholder="Item size, details, ingredients..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+                        <button type="button" @click="isProductModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md">
+                            {{ productModalMode === 'add' ? 'Create Listing' : 'Save Changes' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- MODAL D: CREATE OR EDIT CUSTOMER FORM -->
+        <div v-if="isCustomerModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-plus text-emerald-500"></i>
+                        {{ customerModalMode === 'add' ? 'Add New Customer Profile' : 'Edit Customer Account' }}
+                    </h3>
+                    <button @click="isCustomerModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <form @submit.prevent="saveCustomer" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Full Name *</label>
+                        <input type="text" v-model="customerForm.name" required placeholder="e.g. Sarah Jenkins" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Phone No</label>
+                            <input type="text" v-model="customerForm.phone" placeholder="+44 7700..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Email Address</label>
+                            <input type="email" v-model="customerForm.email" placeholder="sarah@example.com" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Mailing Address</label>
+                        <input type="text" v-model="customerForm.address" placeholder="e.g. 45 Bullring Lane, Birmingham" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Loyalty comments notes</label>
+                        <textarea v-model="customerForm.notes" rows="2" placeholder="Prefers sugar free snacks, VIP cardholder..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+                        <button type="button" @click="isCustomerModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md">
+                            {{ customerModalMode === 'add' ? 'Register Account' : 'Save Changes' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- MODAL E: CREATE OR EDIT EXPENSE LOG -->
+        <div v-if="isExpenseModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-receipt text-emerald-500"></i>
+                        {{ expenseModalMode === 'add' ? 'Log Store Expenditure' : 'Edit Expense Entry' }}
+                    </h3>
+                    <button @click="isExpenseModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <form @submit.prevent="saveExpense" class="p-6 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Expense Date *</label>
+                            <input type="date" required v-model="expenseForm.date" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Expense Category *</label>
+                            <select v-model="expenseForm.category" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:outline-none">
+                                <option v-for="cat in ['Rent', 'Utilities', 'Marketing', 'Supplier Invoices', 'Store Supplies', 'Wages', 'Insurance', 'General']" :key="cat" :value="cat">{{ cat }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Amount Spent *</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2 font-bold text-slate-400">{{ settings.currency }}</span>
+                                <input type="number" step="0.01" required v-model.number="expenseForm.amount" class="w-full pl-7 pr-3 py-2 border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-sm font-bold text-slate-950 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Payment Method</label>
+                            <select v-model="expenseForm.paymentMethod" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:outline-none">
+                                <option v-for="mode in ['Bank Transfer', 'Card', 'Cash', 'Direct Debit']" :key="mode" :value="mode">{{ mode }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Cost Description details</label>
+                        <input type="text" v-model="expenseForm.description" placeholder="e.g. Supplier payment for whole wheat bread" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+                        <button type="button" @click="isExpenseModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md">
+                            {{ expenseModalMode === 'add' ? 'Log Cost' : 'Save Changes' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- MODAL F: CREATE NEW CATEGORY QUICK-FORM -->
+        <div v-if="isCategoryModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-folder-open text-emerald-500"></i>
+                        Add New Category
+                    </h3>
+                    <button @click="isCategoryModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <form @submit.prevent="saveCategory" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Category Label *</label>
+                        <input type="text" required v-model="categoryForm.name" placeholder="e.g. Bakery, Snacks" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Brief Description</label>
+                        <input type="text" v-model="categoryForm.description" placeholder="Short summary..." class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+                        <button type="button" @click="isCategoryModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md">Add Category</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- MODAL G: ADD LOCAL CASHIER STAFF -->
+        <div v-if="isCashierModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-plus text-emerald-500"></i>
+                        Register New Staff Cashier
+                    </h3>
+                    <button @click="isCashierModalOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <form @submit.prevent="saveCashier" class="p-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Employee Full Name *</label>
+                        <input type="text" required v-model="cashierForm.name" placeholder="e.g. Emma Watson" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Passcode / PIN *</label>
+                            <input type="password" maxlength="4" required v-model="cashierForm.passcode" placeholder="PIN" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white text-center font-black focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Role / Authority</label>
+                            <select v-model="cashierForm.role" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:outline-none">
+                                <option value="Cashier">Cashier</option>
+                                <option value="Manager">Manager</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Work Email</label>
+                        <input type="email" v-model="cashierForm.email" placeholder="emma@apexpos.com" class="w-full px-3 py-2 text-sm border rounded-xl bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-950 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+                        <button type="button" @click="isCashierModalOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md">Add Employee</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- MODAL H: ACTIVE AND PHYSICAL NFC PROGRAMMING WRITER -->
+        <div v-if="isNfcWriterOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl max-w-sm w-full overflow-hidden flex flex-col">
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-1.5 uppercase tracking-wider">
+                        <i class="fa-solid fa-wifi rotate-90 text-emerald-500 animate-pulse"></i>
+                        Program Physical NFC Tag
+                    </h3>
+                    <button @click="isNfcWriterOpen = false" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+                </div>
+
+                <div class="p-6 text-center space-y-4">
+                    <div class="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-2xl mx-auto ring-4 ring-emerald-500/10">
+                        <i class="fa-solid fa-wifi rotate-90 animate-bounce"></i>
+                    </div>
+
+                    <div class="space-y-1">
+                        <h4 class="font-bold text-sm text-slate-900 dark:text-white">Programming Payload Queue:</h4>
+                        <p class="text-xs font-mono text-emerald-500 bg-slate-100 dark:bg-slate-900 py-1.5 px-3 rounded inline-block">{{ nfcWriteData }}</p>
+                    </div>
+
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        To program an empty NFC sticker/badge, tap the button below on an **Android Phone with Chrome**, then hold the badge close to the NFC antenna behind your phone.
+                    </p>
+                </div>
+
+                <div class="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                    <button @click="isNfcWriterOpen = false" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl">Close</button>
+                    <button @click="executeNfcWrite" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center gap-1.5">
+                        <i class="fa-solid fa-check-double"></i> Write Now
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- TOAST FLOATING ACTIONS ALERT -->
+        <transition name="fade">
+            <div v-if="notification.show" class="fixed bottom-5 right-5 z-50 flex items-center p-4 rounded-xl shadow-lg border text-xs font-bold uppercase transition-all duration-300 animate-bounce"
+                 :class="[notification.type === 'success' ? 'bg-emerald-500 border-emerald-400 text-slate-950' : 
+                          notification.type === 'warning' ? 'bg-amber-500 border-amber-400 text-slate-950' : 'bg-red-500 border-red-400 text-white']">
+                <i class="text-sm mr-2" 
+                   :class="[notification.type === 'success' ? 'fa-solid fa-circle-check' : 
+                            notification.type === 'warning' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-triangle-exclamation']"></i>
+                {{ notification.message }}
+            </div>
+        </transition>
+
+    </div>
+
+    <!-- Core DB script -->
+    <script src="db.js"></script>
+    <!-- Core UI app script -->
+    <script src="app.js"></script>
+</body>
+</html>
