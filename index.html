@@ -62,7 +62,7 @@
     <!-- Compiled Tailwind Production Stylesheet -->
     <link rel="stylesheet" href="tailwind-compiled.css">
     <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom stylesheet for print & scrollbars -->
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -1680,15 +1680,31 @@
     </div>
 
     <!-- Core DB script -->
-    <!-- Frameworks: pinned versions + SRI, loaded just before app init -->
-    <script src="https://unpkg.com/dexie@3.2.7/dist/dexie.js" integrity="sha384-reBVfKAU1UxUqmRTQ6ntlvTjjJgZ0CwiFjKeeBjJRJQRZOytUnuR+MpZjm4dQOT+" crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.js" integrity="sha384-WRCkrPcTVlHVnve6RlPL8tCU8PqAUXcxyIMIjpddtL45o+jJTBmFX2SJw88IOVo1" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" integrity="sha384-9MhbyIRcBVQiiC7FSd7T38oJNj2Zh+EfxS7/vjhBi4OOT78NlHSnzM31EZRWR1LZ" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/dexie@3.2.7/dist/dexie.js"></script>
+    <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+    <!-- Fallback CDN verification -->
+    <script>
+      if (typeof Dexie === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.7/dexie.min.js"><\/script>');
+      if (typeof Vue === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.38/vue.global.prod.js"><\/script>');
+      if (typeof Chart === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"><\/script>');
+    </script>
 
     <script src="db.js"></script>
     <!-- Core UI app script -->
     <script src="app.js"></script>
+
     <script>
+        // Safety uncloak: if Vue takes >2.5s or fails to mount, reveal the app shell so it never stays black/white blank
+        setTimeout(function() {
+            var appElem = document.getElementById('app');
+            if (appElem && appElem.hasAttribute('v-cloak')) {
+                console.warn('Apex POS: Auto-removing v-cloak safeguard.');
+                appElem.removeAttribute('v-cloak');
+            }
+        }, 2500);
+
         // Offline-first: register the service worker (full app shell cached)
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
