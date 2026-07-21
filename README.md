@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://dlinacre.github.io/Apex-POS/">
-    <img src="assets/banner.png" alt="Apex POS — Offline-First Point of Sale" width="800">
+    <img src="assets/banner.svg" alt="Apex POS — Offline-First Point of Sale" width="100%">
   </a>
 </p>
 
