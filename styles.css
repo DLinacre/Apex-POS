@@ -7,6 +7,23 @@
     display: none !important;
 }
 
+/* ── Global Dark Theme Surface Defaults ── */
+html.dark,
+html.dark body {
+    background-color: #0f172a !important;
+    color: #f8fafc !important;
+}
+
+html.dark #app {
+    background-color: #0f172a !important;
+}
+
+/* ── Canvas Chart Container Constraints ── */
+canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+}
+
 /* ── Smooth scrolling (respecting reduced motion) ── */
 html {
     scroll-behavior: smooth;
