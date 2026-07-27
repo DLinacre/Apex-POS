@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-50 dark:bg-slate-900">
+<html lang="en" class="h-full dark bg-slate-900 text-slate-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,7 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="application-name" content="Apex POS">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com; font-src 'self' https://cdnjs.cloudflare.com data:; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://unpkg.com https://cdn.jsdelivr.net https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com; font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:; connect-src 'self' https://accounts.google.com; frame-src https://accounts.google.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 
 
     <!-- Open Graph -->
@@ -372,8 +372,8 @@
                                 <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Sales Revenue & Net Profit Trend</h3>
                                 <span class="text-xs text-slate-400">Daily summaries</span>
                             </div>
-                            <div class="h-80">
-                                <canvas id="salesLineChart"></canvas>
+                            <div class="relative w-full h-72 max-h-72 overflow-hidden">
+                                <canvas id="salesLineChart" class="w-full h-full"></canvas>
                             </div>
                         </div>
 
@@ -382,8 +382,8 @@
                                 <h3 class="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Sales Category Distribution</h3>
                                 <span class="text-xs text-slate-400">Revenue division</span>
                             </div>
-                            <div class="h-80 flex items-center justify-center">
-                                <canvas id="categoryDoughnutChart" v-show="sales.length > 0"></canvas>
+                            <div class="relative w-full h-72 max-h-72 flex items-center justify-center overflow-hidden">
+                                <canvas id="categoryDoughnutChart" v-show="sales.length > 0" class="w-full h-full"></canvas>
                                 <div v-show="sales.length === 0" class="text-center py-10">
                                     <i class="fa-solid fa-pie-chart text-4xl text-slate-300 mb-2"></i>
                                     <p class="text-xs text-slate-400">No category statistics available.</p>

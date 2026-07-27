@@ -1118,14 +1118,36 @@ createApp({
 
             const sCtx = document.getElementById('salesLineChart')?.getContext('2d');
             if (sCtx) {
-                this.salesChartInstance = new Chart(sCtx, { type: 'line', data: { labels, datasets: [{ label: `Revenue (${this.settings.currency})`, data: revData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, fill: true, borderWidth: 3 }, { label: `Net Profit (${this.settings.currency})`, data: profitData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', tension: 0.3, fill: true, borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } } });
+                this.salesChartInstance = new Chart(sCtx, {
+                    type: 'line',
+                    data: { labels, datasets: [{ label: `Revenue (${this.settings.currency})`, data: revData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.3, fill: true, borderWidth: 3 }, { label: `Net Profit (${this.settings.currency})`, data: profitData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', tension: 0.3, fill: true, borderWidth: 2 }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        resizeDelay: 200,
+                        plugins: { legend: { position: 'top', labels: { color: '#94a3b8', font: { family: 'Outfit, sans-serif' } } } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                        }
+                    }
+                });
             }
 
             const catShares = {};
             salesFiltered.forEach(sale => { if (sale.status === 'completed') { sale.items.forEach(item => { const prod = this.products.find(p => p.id === item.productId); const cat = prod ? prod.category : 'General'; catShares[cat] = (catShares[cat] || 0) + item.total; }); } });
             const cCtx = document.getElementById('categoryDoughnutChart')?.getContext('2d');
             if (cCtx && Object.keys(catShares).length > 0) {
-                this.categoryChartInstance = new Chart(cCtx, { type: 'doughnut', data: { labels: Object.keys(catShares), datasets: [{ data: Object.values(catShares).map(v => parseFloat(v.toFixed(2))), backgroundColor: ['#10b981','#3b82f6','#f59e0b','#ec4899','#8b5cf6','#f97316','#64748b'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+                this.categoryChartInstance = new Chart(cCtx, {
+                    type: 'doughnut',
+                    data: { labels: Object.keys(catShares), datasets: [{ data: Object.values(catShares).map(v => parseFloat(v.toFixed(2))), backgroundColor: ['#10b981','#3b82f6','#f59e0b','#ec4899','#8b5cf6','#f97316','#64748b'] }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        resizeDelay: 200,
+                        plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { family: 'Outfit, sans-serif' } } } }
+                    }
+                });
             }
         },
 

@@ -6,3 +6,9 @@ node_modules/
 dist/
 www/
 *.apk
+
+.env
+.env*
+*.env
+*.key
+
