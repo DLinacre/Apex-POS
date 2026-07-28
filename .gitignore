@@ -12,3 +12,4 @@ www/
 *.env
 *.key
 
+.vercel
